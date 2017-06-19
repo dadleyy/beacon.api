@@ -47,9 +47,19 @@ func main() {
 	}
 
 	routes := net.RouteList{
-		net.RouteConfig{"GET", regexp.MustCompile("/system")}:          routes.System,
-		net.RouteConfig{"GET", regexp.MustCompile("/register")}:        (&routes.Registration{registrationStream}).Register,
-		net.RouteConfig{"POST", regexp.MustCompile("/device-message")}: routes.CreateDeviceMessage,
+		net.RouteConfig{"GET", regexp.MustCompile("^/system")}: routes.System,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: regexp.MustCompile("^/register"),
+		}: (&routes.Registration{registrationStream}).Register,
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: regexp.MustCompile("^/device-message"),
+		}: routes.CreateDeviceMessage,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: regexp.MustCompile("^/devices/(?P<uuid>[\\d\\w\\-]+)/(?P<color>red|blue|green)$"),
+		}: routes.UpdateDeviceShorthand,
 	}
 
 	runtime := net.ServerRuntime{
