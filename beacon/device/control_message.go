@@ -1,5 +1,6 @@
 package device
 
+import "fmt"
 import "time"
 
 type ControlMessage struct {
@@ -10,4 +11,8 @@ type ControlMessage struct {
 	LED      uint8         `json:"led"`
 	FadeTime time.Duration `json:"fade_time"`
 	Duration time.Duration `json:"duration"`
+}
+
+func (message *ControlMessage) Inspect() string {
+	return fmt.Sprintf("red[%d] green[%d] blue[%d]", message.Red, message.Green, message.Blue)
 }

@@ -52,6 +52,8 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 		return
 	}
 
+	defer writer.Close()
+
 	encoder := json.NewEncoder(writer)
 
 	if e := encoder.Encode(command); e != nil {
@@ -60,7 +62,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 		return
 	}
 
-	processor.Printf("relayed command to device[%s] - %v", device.GetID(), command)
+	processor.Printf("relayed command to device[%s] - %s", device.GetID(), command.Inspect())
 }
 
 func (processor *DeviceControlProcessor) unsubscribe(connection *device.Connection) {
@@ -139,6 +141,8 @@ func (processor *DeviceControlProcessor) subscribe(connection *device.Connection
 
 func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	processor.Printf("device control processor starting")
 
 	wait, timer := sync.WaitGroup{}, time.NewTicker(time.Minute)
 	defer timer.Stop()
