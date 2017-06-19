@@ -1,32 +1,34 @@
 package net
 
-// import "io"
 import "fmt"
 import "log"
-
-// import "bytes"
 import "net/http"
 import "github.com/gorilla/websocket"
+
+import "github.com/dadleyy/beacon.api/beacon/defs"
 
 type ServerRuntime struct {
 	websocket.Upgrader
 	RouteList
 	*log.Logger
+
+	BackgroundChannels defs.BackgroundChannels
 }
 
 func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
 	found, params, handler := runtime.Match(request)
 	result := HandlerResult{Errors: []error{fmt.Errorf("not-found")}}
 
-	runtime.Printf("%s %s\n", request.URL.Path, request.URL.Host)
+	runtime.Printf("%s %s %s\n", request.Method, request.URL.Path, request.URL.Host)
 
 	requestRuntime := RequestRuntime{
 		Values:   params,
 		Upgrader: runtime.Upgrader,
 		Logger:   runtime.Logger,
 
-		responseWriter: responseWriter,
-		request:        request,
+		responseWriter:     responseWriter,
+		request:            request,
+		backgroundChannels: runtime.BackgroundChannels,
 	}
 
 	if found == true {
@@ -42,6 +44,7 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 	var renderer Renderer
 
 	if result.NoRender {
+		runtime.Printf("not rendering")
 		return
 	}
 
