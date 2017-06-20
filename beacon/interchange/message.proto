@@ -1,0 +1,12 @@
+syntax = "proto3";
+package interchange;
+
+message DeviceMessageAuth {
+  string DeviceId = 1;
+}
+
+message DeviceMessage {
+  string RequestPath = 1;
+  DeviceMessageAuth Authentication = 2;
+  bytes RequestBody = 3;
+}

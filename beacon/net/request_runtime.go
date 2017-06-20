@@ -1,6 +1,7 @@
 package net
 
 import "io"
+import "fmt"
 import "log"
 import "net/url"
 import "net/http"
@@ -27,6 +28,10 @@ func (runtime *RequestRuntime) ReadBody(target interface{}) error {
 	}
 
 	return nil
+}
+
+func (runtime *RequestRuntime) LogicError(message string) HandlerResult {
+	return HandlerResult{Errors: []error{fmt.Errorf(message)}}
 }
 
 func (runtime *RequestRuntime) Publish(channelName string, message io.Reader) bool {

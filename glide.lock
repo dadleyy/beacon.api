@@ -1,8 +1,19 @@
-hash: 13a842ef535eaca11044e84fef894e2cf2192c900140fd55d5b6b8ee6eeb6616
-updated: 2017-06-19T13:23:58.938567616-04:00
+hash: 031e962de7e591971eed4e567322b58c9aeca8f40a5c4d5a2e182ac8a7a1ecda
+updated: 2017-06-21T15:52:50.912291938-04:00
 imports:
+- name: github.com/garyburd/redigo
+  version: 433969511232c397de61b1442f9fd49ec06ae9ba
+  subpackages:
+  - internal
+  - redis
+- name: github.com/golang/protobuf
+  version: 98fa357170587e470c5f27d3c3ea0947b71eb455
+  subpackages:
+  - proto
 - name: github.com/gorilla/websocket
   version: 3ab3a8b8831546bd18fd182c20687ca853b2bb13
+- name: github.com/joho/godotenv
+  version: 726cc8b906e3d31c70a9671c90a13716a8d3f50d
 - name: github.com/satori/go.uuid
   version: 879c5887cd475cd7864858769793b2ceb0d44feb
 testImports: []

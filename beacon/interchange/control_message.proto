@@ -1,0 +1,8 @@
+syntax = "proto3";
+package interchange;
+
+message ControlMessage {
+  int64 Red = 1;
+  int64 Green = 2;
+  int64 Blue = 3;
+}

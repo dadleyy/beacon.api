@@ -3,7 +3,9 @@ package net
 import "fmt"
 import "log"
 import "net/http"
+
 import "github.com/gorilla/websocket"
+import "github.com/garyburd/redigo/redis"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
 
@@ -13,6 +15,7 @@ type ServerRuntime struct {
 	*log.Logger
 
 	BackgroundChannels defs.BackgroundChannels
+	RedisConnection    redis.Conn
 }
 
 func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
