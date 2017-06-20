@@ -10,7 +10,7 @@ func noop(r *RequestRuntime) HandlerResult {
 	return HandlerResult{Errors: []error{fmt.Errorf("not-found")}}
 }
 
-func (list *RouteList) Match(request *http.Request) (bool, url.Values, Handler) {
+func (list *RouteList) match(request *http.Request) (bool, url.Values, Handler) {
 	method, path := request.Method, request.URL.EscapedPath()
 	pbytes := []byte(path)
 

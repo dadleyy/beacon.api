@@ -14,5 +14,5 @@ type ControlMessage struct {
 }
 
 func (message *ControlMessage) Inspect() string {
-	return fmt.Sprintf("red[%d] green[%d] blue[%d]", message.Red, message.Green, message.Blue)
+	return fmt.Sprintf("rgb(%d,%d,%d)", message.Red, message.Green, message.Blue)
 }

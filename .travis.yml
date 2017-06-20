@@ -1,0 +1,16 @@
+language: go
+
+go:
+  - 1.7.x
+
+install:
+  - go get -u github.com/Masterminds/glide
+  - glide install
+
+script: 
+  - touch .env
+  - ./auto/travis/test.sh
+  - go vet $(go list ./... | grep -vi 'vendor\|testing')
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

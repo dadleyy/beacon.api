@@ -1,10 +1,11 @@
 package device
 
 import "github.com/satori/go.uuid"
-import "github.com/gorilla/websocket"
+
+import "github.com/dadleyy/beacon.api/beacon/defs"
 
 type Connection struct {
-	*websocket.Conn
+	defs.CommandStreamer
 	uuid.UUID
 }
 

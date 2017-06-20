@@ -139,15 +139,15 @@ func (processor *DeviceControlProcessor) subscribe(connection *device.Connection
 	processor.Printf("closing device[%s]", connection.UUID.String())
 }
 
-func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup) {
+func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwitch) {
 	defer wg.Done()
 
 	processor.Printf("device control processor starting")
 
-	wait, timer := sync.WaitGroup{}, time.NewTicker(time.Minute)
+	wait, timer, running := sync.WaitGroup{}, time.NewTicker(time.Minute), true
 	defer timer.Stop()
 
-	for {
+	for running {
 		select {
 		case message := <-processor.ControlStream:
 			wait.Add(1)
@@ -158,6 +158,10 @@ func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup) {
 			go processor.subscribe(connection, &wait)
 		case <-timer.C:
 			processor.Printf("pool len[%d] cap[%d]", len(processor.pool), cap(processor.pool))
+		case <-stop:
+			processor.Printf("received kill signal, breaking")
+			running = false
+			break
 		}
 	}
 

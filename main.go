@@ -7,7 +7,10 @@ import "log"
 import "flag"
 import "sync"
 import "regexp"
+import "context"
+import "syscall"
 import "net/http"
+import "os/signal"
 import "github.com/gorilla/websocket"
 
 import "github.com/dadleyy/beacon.api/beacon/bg"
@@ -17,12 +20,34 @@ import "github.com/dadleyy/beacon.api/beacon/routes"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/security"
 
+func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Server) {
+	<-system
+	log.Printf("receiving system exit signal, killing background processors")
+
+	for _, switcher := range killers {
+		switcher <- struct{}{}
+	}
+
+	server.Shutdown(context.Background())
+}
+
 func main() {
 	flags := struct {
-		port string
+		port     string
+		hostname string
 	}{}
 
 	logger := log.New(os.Stdout, "beacon ", log.Ldate|log.Ltime|log.Lshortfile)
+
+	flag.StringVar(&flags.port, "port", "12345", "the port to attach the http listener to")
+	flag.StringVar(&flags.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
+	flag.Parse()
+
+	if valid := len(flags.port) >= 1; !valid {
+		fmt.Printf("invalid port: %s", flags.port)
+		flag.PrintDefaults()
+		return
+	}
 
 	websocketUpgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -69,27 +94,27 @@ func main() {
 		BackgroundChannels: backgroundChannels,
 	}
 
-	flag.StringVar(&flags.port, "port", "12345", "the port to attach the http listener to")
-	flag.Parse()
-
-	if valid := len(flags.port) >= 1; !valid {
-		fmt.Printf("invalid port: %s", flags.port)
-		flag.PrintDefaults()
-		return
-	}
-
 	logger.Printf("starting server on port: %s\n", flags.port)
 
-	wg := sync.WaitGroup{}
+	wg, signalChan, killers := sync.WaitGroup{}, make(chan os.Signal, 1), make([]bg.KillSwitch, 0)
+	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT)
 
 	for _, processor := range processors {
 		wg.Add(1)
-		go processor.Start(&wg)
+		stop := make(bg.KillSwitch)
+		killers = append(killers, stop)
+		go processor.Start(&wg, stop)
 	}
 
-	if e := http.ListenAndServe("0.0.0.0:12345", &runtime); e != nil {
-		logger.Fatalf("unable to start server: %s", e.Error())
+	serverAddress := fmt.Sprintf("%s:%s", flags.hostname, flags.port)
+	server := http.Server{Addr: serverAddress, Handler: &runtime}
+
+	go systemWatch(signalChan, killers, &server)
+
+	if e := server.ListenAndServe(); e != nil {
+		logger.Printf("server shutdown: %s", e.Error())
 	}
 
 	wg.Wait()
+	os.Exit(1)
 }

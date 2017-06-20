@@ -17,8 +17,8 @@ func (registration *Registration) Register(runtime *net.RequestRuntime) net.Hand
 	}
 
 	deviceConnection := device.Connection{
-		Conn: connection,
-		UUID: uuid.NewV4(),
+		CommandStreamer: connection,
+		UUID:            uuid.NewV4(),
 	}
 
 	registration.Registrations <- &deviceConnection

@@ -16,7 +16,7 @@ type ServerRuntime struct {
 }
 
 func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
-	found, params, handler := runtime.Match(request)
+	found, params, handler := runtime.match(request)
 	result := HandlerResult{Errors: []error{fmt.Errorf("not-found")}}
 
 	runtime.Printf("%s %s %s\n", request.Method, request.URL.Path, request.URL.Host)
