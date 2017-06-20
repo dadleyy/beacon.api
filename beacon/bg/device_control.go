@@ -156,5 +156,10 @@ func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwit
 		}
 	}
 
+	for _, c := range processor.pool {
+		processor.Printf("closing connection: %s", c.GetID())
+		c.Close()
+	}
+
 	wait.Wait()
 }

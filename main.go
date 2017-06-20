@@ -32,19 +32,19 @@ func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Se
 }
 
 func main() {
-	flags := struct {
+	options := struct {
 		port     string
 		hostname string
 	}{}
 
 	logger := log.New(os.Stdout, "beacon ", log.Ldate|log.Ltime|log.Lshortfile)
 
-	flag.StringVar(&flags.port, "port", "12345", "the port to attach the http listener to")
-	flag.StringVar(&flags.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
+	flag.StringVar(&options.port, "port", "12345", "the port to attach the http listener to")
+	flag.StringVar(&options.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
 	flag.Parse()
 
-	if valid := len(flags.port) >= 1; !valid {
-		fmt.Printf("invalid port: %s", flags.port)
+	if valid := len(options.port) >= 1; !valid {
+		fmt.Printf("invalid port: %s", options.port)
 		flag.PrintDefaults()
 		return
 	}
@@ -99,7 +99,7 @@ func main() {
 		BackgroundChannels: backgroundChannels,
 	}
 
-	logger.Printf("starting server on port: %s\n", flags.port)
+	logger.Printf("starting server on port: %s\n", options.port)
 
 	wg, signalChan, killers := sync.WaitGroup{}, make(chan os.Signal, 1), make([]bg.KillSwitch, 0)
 	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT)
@@ -111,7 +111,7 @@ func main() {
 		go processor.Start(&wg, stop)
 	}
 
-	serverAddress := fmt.Sprintf("%s:%s", flags.hostname, flags.port)
+	serverAddress := fmt.Sprintf("%s:%s", options.hostname, options.port)
 	server := http.Server{Addr: serverAddress, Handler: &runtime}
 
 	go systemWatch(signalChan, killers, &server)
