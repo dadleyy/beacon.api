@@ -56,20 +56,25 @@ func main() {
 	}
 
 	backgroundChannels := defs.BackgroundChannels{
-		defs.DeviceControlChannelName: make(chan io.Reader, 10),
+		defs.DeviceControlChannelName:  make(chan io.Reader, 10),
+		defs.DeviceFeedbackChannelName: make(chan io.Reader, 10),
 	}
 
 	registrationStream := make(chan *device.Connection, 10)
 
 	control := bg.DeviceControlProcessor{
 		Logger:        log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile),
+		LogStream:     backgroundChannels[defs.DeviceFeedbackChannelName],
 		ControlStream: backgroundChannels[defs.DeviceControlChannelName],
 		Registrations: registrationStream,
 	}
 
-	processors := []bg.Processor{
-		&control,
+	feedback := bg.DeviceFeedbackProcessor{
+		Logger:    log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile),
+		LogStream: backgroundChannels[defs.DeviceFeedbackChannelName],
 	}
+
+	processors := []bg.Processor{&control, &feedback}
 
 	routes := net.RouteList{
 		net.RouteConfig{"GET", regexp.MustCompile("^/system")}: routes.System,

@@ -124,16 +124,7 @@ func (processor *DeviceControlProcessor) subscribe(connection *device.Connection
 			break
 		}
 
-		decoder, message := json.NewDecoder(reader), struct {
-			Data string `json:"data"`
-		}{}
-
-		if e := decoder.Decode(&message); e != nil {
-			processor.Printf("unable to decode device message: %s", e.Error())
-			break
-		}
-
-		processor.Printf("recieved message: \"%s\"", message.Data)
+		processor.LogStream <- reader
 	}
 
 	processor.Printf("closing device[%s]", connection.UUID.String())
