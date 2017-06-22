@@ -11,11 +11,13 @@ install:
   - protoc --version
   - go get -u github.com/Masterminds/glide
   - go get -u github.com/golang/protobuf/protoc-gen-go
+  - go get -u github.com/golang/lint/golint
   - glide install
 
 script: 
   - touch .env
   - make
+  - make lint
   - ./auto/travis/test.sh
   - go vet $(go list ./... | grep -vi 'vendor\|testing')
 

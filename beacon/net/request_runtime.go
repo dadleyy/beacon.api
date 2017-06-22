@@ -37,6 +37,7 @@ func (runtime *RequestRuntime) LogicError(message string) HandlerResult {
 	return HandlerResult{Errors: []error{fmt.Errorf(message)}}
 }
 
+// Publish sends the provided Reader item into the given channel, returning a boolean indicating if the channel exists
 func (runtime *RequestRuntime) Publish(channelName string, message io.Reader) bool {
 	s, ok := runtime.backgroundChannels[channelName]
 

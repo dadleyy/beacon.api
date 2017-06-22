@@ -4,11 +4,13 @@ import "io"
 import "log"
 import "sync"
 
+// DeviceFeedbackProcessor is responsible for receiving from the device feedback stream
 type DeviceFeedbackProcessor struct {
 	*log.Logger
 	LogStream <-chan io.Reader
 }
 
+// Start is the Processor#Start implementation
 func (processor *DeviceFeedbackProcessor) Start(wg *sync.WaitGroup, stop KillSwitch) {
 	defer wg.Done()
 	running := true

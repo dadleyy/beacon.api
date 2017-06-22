@@ -9,6 +9,9 @@ import "github.com/garyburd/redigo/redis"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
 
+// ServerRuntime defines the object that implments the http.Handler interface used during application startup to open
+// the http server. It is also responsible for matching inbound requests with it's embedded routelist and creating the
+// request runtime to be sent into the matching route handler.
 type ServerRuntime struct {
 	websocket.Upgrader
 	RouteList
@@ -18,6 +21,7 @@ type ServerRuntime struct {
 	RedisConnection    redis.Conn
 }
 
+// ServerHTTP implmentation of the http.Handler interface method
 func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
 	found, params, handler := runtime.match(request)
 	result := HandlerResult{Errors: []error{fmt.Errorf("not-found")}}
@@ -53,7 +57,7 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 
 	switch request.Header.Get("accepts") {
 	default:
-		renderer = &JsonRenderer{"0.0.1"}
+		renderer = &JSONRenderer{"0.0.1"}
 	}
 
 	if e := renderer.Render(responseWriter, result); e != nil {

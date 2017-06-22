@@ -4,8 +4,8 @@ import "time"
 import "net/http"
 import "encoding/json"
 
-// JsonRenderer exposes a `Renderer` interface for rendering `HandlerResult`s in json
-type JsonRenderer struct {
+// JSONRenderer exposes a `Renderer` interface for rendering `HandlerResult`s in json
+type JSONRenderer struct {
 	version string
 }
 
@@ -17,7 +17,7 @@ type jsonResponse struct {
 }
 
 // Render uses a response writer and a `HandlerResult` to serialize the result in a json-api like format
-func (js *JsonRenderer) Render(response http.ResponseWriter, result HandlerResult) error {
+func (js *JSONRenderer) Render(response http.ResponseWriter, result HandlerResult) error {
 	headers := response.Header()
 	headers["Content-Type"] = []string{"application/json"}
 

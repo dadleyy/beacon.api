@@ -6,6 +6,7 @@ import "encoding/json"
 import "github.com/dadleyy/beacon.api/beacon/net"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 
+// CreateDeviceMessage publishes a new DeviceMessage to the control stream
 func CreateDeviceMessage(runtime *net.RequestRuntime) net.HandlerResult {
 	message := struct{}{}
 	if e := runtime.ReadBody(&message); e != nil {
