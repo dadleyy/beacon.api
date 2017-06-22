@@ -2,9 +2,9 @@ syntax = "proto3";
 package interchange;
 
 message ControlFrame {
-  int64 Red = 1;
-  int64 Green = 2;
-  int64 Blue = 3;
+  uint32 Red = 1;
+  uint32 Green = 2;
+  uint32 Blue = 3;
 }
 
 message ControlMessage {

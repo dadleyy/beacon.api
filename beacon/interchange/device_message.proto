@@ -1,0 +1,17 @@
+syntax = "proto3";
+package interchange;
+
+message DeviceMessageAuthentication {
+  string DeviceID = 1;
+}
+
+enum DeviceMessageType {
+  WELCOME = 0;
+  CONTROL = 1;
+}
+
+message DeviceMessage {
+  DeviceMessageType Type = 1;
+  DeviceMessageAuthentication Authentication = 2;
+  bytes Payload = 3;
+}

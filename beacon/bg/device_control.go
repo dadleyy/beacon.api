@@ -19,7 +19,7 @@ type WriteStream chan<- io.Reader
 // ReadStream defines a receive-only channel for io.Reader types
 type ReadStream <-chan io.Reader
 
-// RegistrationStream defines a receive-only channel for new device connections
+// RegistrationStream defines a receive-only channel DeviceMessageType new device connections
 type RegistrationStream <-chan *device.Connection
 
 // DeviceChannels is a convenience structure containing a ReadStream, WriteStream and RegistrationStream
@@ -63,7 +63,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	}
 
 	var device *device.Connection
-	targetID := controlMessage.Authentication.DeviceId
+	targetID := controlMessage.Authentication.DeviceID
 
 	for _, d := range processor.pool {
 		if deviceID := d.UUID.String(); deviceID != targetID {
@@ -79,7 +79,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 		return
 	}
 
-	writer, e := device.NextWriter(websocket.BinaryMessage)
+	writer, e := device.NextWriter(websocket.TextMessage)
 
 	if e != nil {
 		processor.Printf("unable to open writer to device (closing device): %s", e.Error())
@@ -126,7 +126,7 @@ func (processor *DeviceControlProcessor) unsubscribe(connection *device.Connecti
 
 func (processor *DeviceControlProcessor) welcome(connection *device.Connection, wg *sync.WaitGroup) {
 	defer wg.Done()
-	writer, e := connection.NextWriter(websocket.BinaryMessage)
+	writer, e := connection.NextWriter(websocket.TextMessage)
 
 	if e != nil {
 		processor.Printf("unable to get welcome writer for device[%s]: %s", connection.GetID(), e.Error())
@@ -135,11 +135,22 @@ func (processor *DeviceControlProcessor) welcome(connection *device.Connection, 
 
 	defer writer.Close()
 
+	welcomeData, e := proto.Marshal(&interchange.WelcomeMessage{
+		DeviceID: connection.GetID(),
+		Body:     "Hello world, I am the body of the welcome message!",
+	})
+
+	if e != nil {
+		processor.Printf("unable to welcome device[%s]: %s", connection.GetID(), e.Error())
+		return
+	}
+
 	welcomeMessage := interchange.DeviceMessage{
+		Type: interchange.DeviceMessageType_WELCOME,
 		Authentication: &interchange.DeviceMessageAuthentication{
-			DeviceId: connection.GetID(),
+			DeviceID: connection.GetID(),
 		},
-		RequestBody: &interchange.DeviceMessage_Welcome{&interchange.WelcomeMessage{}},
+		Payload: welcomeData,
 	}
 
 	messageData, e := proto.Marshal(&welcomeMessage)

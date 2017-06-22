@@ -120,8 +120,6 @@ func main() {
 		RedisConnection:    redisConnection,
 	}
 
-	logger.Printf("starting server on port: %s\n", options.port)
-
 	wg, signalChan, killers := sync.WaitGroup{}, make(chan os.Signal, 1), make([]bg.KillSwitch, 0)
 	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT)
 
@@ -136,6 +134,8 @@ func main() {
 	server := http.Server{Addr: serverAddress, Handler: &runtime}
 
 	go systemWatch(signalChan, killers, &server)
+
+	logger.Printf("starting server on: %s\n", serverAddress)
 
 	if e := server.ListenAndServe(); e != nil {
 		logger.Printf("server shutdown: %s", e.Error())

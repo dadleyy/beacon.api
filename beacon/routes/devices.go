@@ -28,17 +28,23 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 		frame.Green = 255
 	case "red":
 		frame.Red = 255
-	default:
+	case "blue":
 		frame.Blue = 255
+	default:
 	}
 
-	command := interchange.ControlMessage{
+	commandData, e := proto.Marshal(&interchange.ControlMessage{
 		Frames: []*interchange.ControlFrame{&frame},
+	})
+
+	if e != nil {
+		return net.HandlerResult{Errors: []error{e}}
 	}
 
 	message := interchange.DeviceMessage{
+		Type:           interchange.DeviceMessageType_CONTROL,
 		Authentication: &interchange.DeviceMessageAuthentication{deviceID},
-		RequestBody:    &interchange.DeviceMessage_Control{&command},
+		Payload:        commandData,
 	}
 
 	runtime.Printf("attempting to update device %s to %s", deviceID, color)
