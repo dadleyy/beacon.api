@@ -11,7 +11,10 @@ import "context"
 import "syscall"
 import "net/http"
 import "os/signal"
+
+import "github.com/joho/godotenv"
 import "github.com/gorilla/websocket"
+import "github.com/garyburd/redigo/redis"
 
 import "github.com/dadleyy/beacon.api/beacon/bg"
 import "github.com/dadleyy/beacon.api/beacon/net"
@@ -32,22 +35,39 @@ func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Se
 }
 
 func main() {
-	flags := struct {
+	options := struct {
 		port     string
 		hostname string
+		envFile  string
+		redisURL string
 	}{}
 
 	logger := log.New(os.Stdout, "beacon ", log.Ldate|log.Ltime|log.Lshortfile)
-
-	flag.StringVar(&flags.port, "port", "12345", "the port to attach the http listener to")
-	flag.StringVar(&flags.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
+	flag.StringVar(&options.port, "port", "12345", "the port to attach the http listener to")
+	flag.StringVar(&options.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
+	flag.StringVar(&options.envFile, "envfile", ".env", "the environment variable file to load")
+	flag.StringVar(&options.redisURL, "redisuri", "redis://0.0.0.0:6379", "redis server uri")
 	flag.Parse()
 
-	if valid := len(flags.port) >= 1; !valid {
-		fmt.Printf("invalid port: %s", flags.port)
+	if valid := len(options.port) >= 1; !valid {
+		logger.Printf("invalid port: %s", options.port)
 		flag.PrintDefaults()
 		return
 	}
+
+	if e := godotenv.Load(options.envFile); len(options.envFile) > 1 && e != nil {
+		logger.Printf("failed loading env file: %s", e.Error())
+		return
+	}
+
+	redisConnection, e := redis.DialURL(options.redisURL)
+
+	if e != nil {
+		logger.Printf("unable to establish connection to redis server: %s", e.Error())
+		return
+	}
+
+	defer redisConnection.Close()
 
 	websocketUpgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -62,34 +82,34 @@ func main() {
 
 	registrationStream := make(chan *device.Connection, 10)
 
-	control := bg.DeviceControlProcessor{
-		Logger:        log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile),
-		LogStream:     backgroundChannels[defs.DeviceFeedbackChannelName],
-		ControlStream: backgroundChannels[defs.DeviceControlChannelName],
+	registry := device.RedisRegistry{
+		Conn:   redisConnection,
+		Logger: log.New(os.Stdout, "device registry ", log.Ldate|log.Ltime|log.Lshortfile),
+	}
+
+	deviceChannels := bg.DeviceChannels{
+		Feedback:      backgroundChannels[defs.DeviceFeedbackChannelName],
+		Commands:      backgroundChannels[defs.DeviceControlChannelName],
 		Registrations: registrationStream,
 	}
+
+	control := bg.NewDeviceControlProcessor(&deviceChannels, &registry)
 
 	feedback := bg.DeviceFeedbackProcessor{
 		Logger:    log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile),
 		LogStream: backgroundChannels[defs.DeviceFeedbackChannelName],
 	}
 
-	processors := []bg.Processor{&control, &feedback}
+	processors := []bg.Processor{control, &feedback}
+
+	deviceRoutes := &routes.Devices{&registry}
+	registrationRoutes := &routes.Registration{registrationStream}
 
 	routes := net.RouteList{
-		net.RouteConfig{"GET", regexp.MustCompile("^/system")}: routes.System,
-		net.RouteConfig{
-			Method:  "GET",
-			Pattern: regexp.MustCompile("^/register"),
-		}: (&routes.Registration{registrationStream}).Register,
-		net.RouteConfig{
-			Method:  "POST",
-			Pattern: regexp.MustCompile("^/device-message"),
-		}: routes.CreateDeviceMessage,
-		net.RouteConfig{
-			Method:  "GET",
-			Pattern: regexp.MustCompile("^/devices/(?P<uuid>[\\d\\w\\-]+)/(?P<color>red|blue|green)$"),
-		}: routes.UpdateDeviceShorthand,
+		net.RouteConfig{"GET", regexp.MustCompile("^/system")}:                routes.System,
+		net.RouteConfig{"GET", regexp.MustCompile("^/register")}:              registrationRoutes.Register,
+		net.RouteConfig{"POST", regexp.MustCompile("^/device-message")}:       routes.CreateDeviceMessage,
+		net.RouteConfig{"GET", regexp.MustCompile(defs.DeviceShorthandRoute)}: deviceRoutes.UpdateShorthand,
 	}
 
 	runtime := net.ServerRuntime{
@@ -97,9 +117,8 @@ func main() {
 		Upgrader:           websocketUpgrader,
 		RouteList:          routes,
 		BackgroundChannels: backgroundChannels,
+		RedisConnection:    redisConnection,
 	}
-
-	logger.Printf("starting server on port: %s\n", flags.port)
 
 	wg, signalChan, killers := sync.WaitGroup{}, make(chan os.Signal, 1), make([]bg.KillSwitch, 0)
 	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT)
@@ -111,10 +130,12 @@ func main() {
 		go processor.Start(&wg, stop)
 	}
 
-	serverAddress := fmt.Sprintf("%s:%s", flags.hostname, flags.port)
+	serverAddress := fmt.Sprintf("%s:%s", options.hostname, options.port)
 	server := http.Server{Addr: serverAddress, Handler: &runtime}
 
 	go systemWatch(signalChan, killers, &server)
+
+	logger.Printf("starting server on: %s\n", serverAddress)
 
 	if e := server.ListenAndServe(); e != nil {
 		logger.Printf("server shutdown: %s", e.Error())

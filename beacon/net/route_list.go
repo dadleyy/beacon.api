@@ -4,6 +4,7 @@ import "fmt"
 import "net/url"
 import "net/http"
 
+// RouteList is simply a map between a route configuration and the handler function
 type RouteList map[RouteConfig]Handler
 
 func noop(r *RequestRuntime) HandlerResult {

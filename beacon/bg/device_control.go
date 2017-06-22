@@ -1,37 +1,72 @@
 package bg
 
+import "os"
 import "io"
 import "log"
 import "sync"
 import "time"
-import "encoding/json"
+import "io/ioutil"
+
 import "github.com/gorilla/websocket"
+import "github.com/golang/protobuf/proto"
 
 import "github.com/dadleyy/beacon.api/beacon/device"
+import "github.com/dadleyy/beacon.api/beacon/interchange"
 
+// WriteStream defines a send-only channel for io.Reader types
+type WriteStream chan<- io.Reader
+
+// ReadStream defines a receive-only channel for io.Reader types
+type ReadStream <-chan io.Reader
+
+// RegistrationStream defines a receive-only channel DeviceMessageType new device connections
+type RegistrationStream <-chan *device.Connection
+
+// DeviceChannels is a convenience structure containing a ReadStream, WriteStream and RegistrationStream
+type DeviceChannels struct {
+	Commands      ReadStream
+	Feedback      WriteStream
+	Registrations RegistrationStream
+}
+
+// NewDeviceControlProcessor returns a new DeviceControlProcessor
+func NewDeviceControlProcessor(channels *DeviceChannels, store device.Registry) *DeviceControlProcessor {
+	logger := log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile)
+	var pool []*device.Connection
+	return &DeviceControlProcessor{logger, channels, store, pool}
+}
+
+// The DeviceControlProcessor is used by the server to maintain the pool of websocket connections, register new device
+// connections w/ the registry and relay any messages along to the device.
 type DeviceControlProcessor struct {
 	*log.Logger
-
-	LogStream     chan<- io.Reader
-	ControlStream <-chan io.Reader
-	Registrations <-chan *device.Connection
-
-	pool []*device.Connection
+	channels *DeviceChannels
+	registry device.Registry
+	pool     []*device.Connection
 }
 
 func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.WaitGroup) {
-	decoder, command := json.NewDecoder(message), device.ControlMessage{}
 	defer wg.Done()
 
-	if e := decoder.Decode(&command); e != nil {
-		processor.Printf("received strange control message: %s", e.Error())
+	messageData, e := ioutil.ReadAll(message)
+
+	if e != nil {
+		processor.Printf("unable to read message: %s", e.Error())
+		return
+	}
+
+	controlMessage := interchange.DeviceMessage{}
+
+	if e := proto.Unmarshal(messageData, &controlMessage); e != nil {
+		processor.Printf("unable to unmarshal message: %s", e.Error())
 		return
 	}
 
 	var device *device.Connection
+	targetID := controlMessage.Authentication.DeviceID
 
 	for _, d := range processor.pool {
-		if deviceId := d.UUID.String(); deviceId != command.DeviceId {
+		if deviceID := d.UUID.String(); deviceID != targetID {
 			continue
 		}
 
@@ -40,7 +75,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	}
 
 	if device == nil {
-		processor.Printf("unable to locate device for command, command device id: %s", command.DeviceId)
+		processor.Printf("unable to locate device for command, command device id: %s", targetID)
 		return
 	}
 
@@ -54,23 +89,32 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 
 	defer writer.Close()
 
-	encoder := json.NewEncoder(writer)
+	data, e := proto.Marshal(&controlMessage)
 
-	if e := encoder.Encode(command); e != nil {
+	if e != nil {
+		processor.Printf("unable to write command to device (closing device): %s", e.Error())
+		return
+	}
+
+	if _, e := writer.Write(data); e != nil {
 		processor.Printf("unable to write command to device (closing device): %s", e.Error())
 		processor.unsubscribe(device)
 		return
 	}
 
-	processor.Printf("relayed command to device[%s] - %s", device.GetID(), command.Inspect())
+	processor.Printf("relayed command to device[%s]", device.GetID())
 }
 
 func (processor *DeviceControlProcessor) unsubscribe(connection *device.Connection) {
 	defer connection.Close()
-	pool, targetId := make([]*device.Connection, 0, len(processor.pool)-1), connection.UUID.String()
+	pool, targetID := make([]*device.Connection, 0, len(processor.pool)-1), connection.UUID.String()
+
+	if e := processor.registry.Remove(targetID); e != nil {
+		processor.Printf("[warn] unable to get current list of devices - %s", e.Error())
+	}
 
 	for _, device := range processor.pool {
-		if deviceId := device.UUID.String(); deviceId == targetId {
+		if deviceID := device.UUID.String(); deviceID == targetID {
 			continue
 		}
 
@@ -89,16 +133,40 @@ func (processor *DeviceControlProcessor) welcome(connection *device.Connection, 
 		return
 	}
 
-	encoder := json.NewEncoder(writer)
+	defer writer.Close()
 
-	if e := encoder.Encode(device.WelcomeMessage{connection.GetID()}); e != nil {
+	welcomeData, e := proto.Marshal(&interchange.WelcomeMessage{
+		DeviceID: connection.GetID(),
+		Body:     "Hello world, I am the body of the welcome message!",
+	})
+
+	if e != nil {
 		processor.Printf("unable to welcome device[%s]: %s", connection.GetID(), e.Error())
 		return
 	}
 
-	if e := writer.Close(); e != nil {
-		processor.Printf("unable to close welcome writer device[%s]: %s", connection.GetID(), e.Error())
+	welcomeMessage := interchange.DeviceMessage{
+		Type: interchange.DeviceMessageType_WELCOME,
+		Authentication: &interchange.DeviceMessageAuthentication{
+			DeviceID: connection.GetID(),
+		},
+		Payload: welcomeData,
+	}
+
+	messageData, e := proto.Marshal(&welcomeMessage)
+
+	if e != nil {
+		processor.Printf("unable to welcome device[%s]: %s", connection.GetID(), e.Error())
 		return
+	}
+
+	if _, e := writer.Write(messageData); e != nil {
+		processor.Printf("unable to push device id into store: %s", e.Error())
+		return
+	}
+
+	if e := processor.registry.Insert(connection.GetID()); e != nil {
+		processor.Printf("unable to push device id into store: %s", e.Error())
 	}
 
 	processor.Printf("welcomed device[%s]", connection.GetID())
@@ -124,12 +192,13 @@ func (processor *DeviceControlProcessor) subscribe(connection *device.Connection
 			break
 		}
 
-		processor.LogStream <- reader
+		processor.channels.Feedback <- reader
 	}
 
 	processor.Printf("closing device[%s]", connection.UUID.String())
 }
 
+// Start will continously loop over registration & command channels delegating to private methods as necessary.
 func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwitch) {
 	defer wg.Done()
 
@@ -140,10 +209,11 @@ func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwit
 
 	for running {
 		select {
-		case message := <-processor.ControlStream:
+		case message := <-processor.channels.Commands:
 			wait.Add(1)
+			processor.Printf("received message on read channel")
 			go processor.handle(message, &wait)
-		case connection := <-processor.Registrations:
+		case connection := <-processor.channels.Registrations:
 			wait.Add(2)
 			go processor.welcome(connection, &wait)
 			go processor.subscribe(connection, &wait)
@@ -154,6 +224,11 @@ func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwit
 			running = false
 			break
 		}
+	}
+
+	for _, c := range processor.pool {
+		processor.Printf("closing connection: %s", c.GetID())
+		c.Close()
 	}
 
 	wait.Wait()

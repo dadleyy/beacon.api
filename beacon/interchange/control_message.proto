@@ -1,0 +1,12 @@
+syntax = "proto3";
+package interchange;
+
+message ControlFrame {
+  uint32 Red = 1;
+  uint32 Green = 2;
+  uint32 Blue = 3;
+}
+
+message ControlMessage {
+  repeated ControlFrame Frames = 1;
+}

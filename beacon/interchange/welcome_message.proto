@@ -1,0 +1,7 @@
+syntax = "proto3";
+package interchange;
+
+message WelcomeMessage {
+  string DeviceID = 1;
+  string Body = 2;
+}

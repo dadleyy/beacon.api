@@ -13,6 +13,7 @@ node_modules
 vendor/*/
 dump.rdb
 coverage.txt
+beacon-api
 
 # Folders
 _obj

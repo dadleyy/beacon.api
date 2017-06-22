@@ -1,5 +1,6 @@
 package net
 
+// HandlerResult public contract between routes and the server runtime for consistent rendering
 type HandlerResult struct {
 	Errors   []error
 	Results  ResultList
