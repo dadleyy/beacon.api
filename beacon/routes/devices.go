@@ -8,14 +8,17 @@ import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
+// The devices route engine is responsible for CRUD operations on the device objects themselves. It is required to have
+// access to the device registry for ID lookups into the device list.
 type Devices struct {
 	device.Registry
 }
 
+// UpdateShorthand accepts a device id and a color (via url params from the req) and updates the device to that color.
 func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.HandlerResult {
-	deviceId, color := runtime.Get("uuid"), runtime.Get("color")
+	deviceID, color := runtime.Get("uuid"), runtime.Get("color")
 
-	if exists := devices.Exists(deviceId); exists != true {
+	if exists := devices.Exists(deviceID); exists != true {
 		return runtime.LogicError("not-found")
 	}
 
@@ -35,11 +38,11 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 	}
 
 	message := interchange.DeviceMessage{
-		Authentication: &interchange.DeviceMessageAuthentication{deviceId},
+		Authentication: &interchange.DeviceMessageAuthentication{deviceID},
 		RequestBody:    &interchange.DeviceMessage_Control{&command},
 	}
 
-	runtime.Printf("attempting to update device %s to %s", deviceId, color)
+	runtime.Printf("attempting to update device %s to %s", deviceID, color)
 
 	data, e := proto.Marshal(&message)
 

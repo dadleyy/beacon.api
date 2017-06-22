@@ -10,6 +10,7 @@ import "github.com/gorilla/websocket"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
 
+// RequestRuntime is used by the ServerRuntime to expose per-request packages of shared system interfaces
 type RequestRuntime struct {
 	url.Values
 	websocket.Upgrader
@@ -20,6 +21,7 @@ type RequestRuntime struct {
 	backgroundChannels defs.BackgroundChannels
 }
 
+// ReadBody will attempt to fill the provided interface with values from the http request
 func (runtime *RequestRuntime) ReadBody(target interface{}) error {
 	decoder := json.NewDecoder(runtime.request.Body)
 
@@ -30,6 +32,7 @@ func (runtime *RequestRuntime) ReadBody(target interface{}) error {
 	return nil
 }
 
+// LogicError will wrap the provided strin the appropriate error prefix and return a HandlerResult
 func (runtime *RequestRuntime) LogicError(message string) HandlerResult {
 	return HandlerResult{Errors: []error{fmt.Errorf(message)}}
 }
@@ -45,6 +48,7 @@ func (runtime *RequestRuntime) Publish(channelName string, message io.Reader) bo
 	return true
 }
 
+// Websocket attempts to updrade the request to a websocket connection
 func (runtime *RequestRuntime) Websocket() (*websocket.Conn, error) {
 	upgrader, responseWriter, request := runtime.Upgrader, runtime.responseWriter, runtime.request
 	return upgrader.Upgrade(responseWriter, request, nil)

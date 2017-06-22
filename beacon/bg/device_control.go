@@ -25,10 +25,12 @@ type DeviceChannels struct {
 
 func NewDeviceControlProcessor(channels *DeviceChannels, store device.Registry) *DeviceControlProcessor {
 	logger := log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile)
-	pool := make([]*device.Connection, 0)
+	var pool []*device.Connection
 	return &DeviceControlProcessor{logger, channels, store, pool}
 }
 
+// The DeviceControlProcessor is used by the server to maintain the pool of websocket connections, register new device
+// connections w/ the registry and relay any messages along to the device.
 type DeviceControlProcessor struct {
 	*log.Logger
 	channels *DeviceChannels
@@ -54,10 +56,10 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	}
 
 	var device *device.Connection
-	targetId := controlMessage.Authentication.DeviceId
+	targetID := controlMessage.Authentication.DeviceId
 
 	for _, d := range processor.pool {
-		if deviceId := d.UUID.String(); deviceId != targetId {
+		if deviceID := d.UUID.String(); deviceID != targetID {
 			continue
 		}
 
@@ -66,7 +68,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	}
 
 	if device == nil {
-		processor.Printf("unable to locate device for command, command device id: %s", targetId)
+		processor.Printf("unable to locate device for command, command device id: %s", targetID)
 		return
 	}
 
@@ -98,14 +100,14 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 
 func (processor *DeviceControlProcessor) unsubscribe(connection *device.Connection) {
 	defer connection.Close()
-	pool, targetId := make([]*device.Connection, 0, len(processor.pool)-1), connection.UUID.String()
+	pool, targetID := make([]*device.Connection, 0, len(processor.pool)-1), connection.UUID.String()
 
-	if e := processor.registry.Remove(targetId); e != nil {
+	if e := processor.registry.Remove(targetID); e != nil {
 		processor.Printf("[warn] unable to get current list of devices - %s", e.Error())
 	}
 
 	for _, device := range processor.pool {
-		if deviceId := device.UUID.String(); deviceId == targetId {
+		if deviceID := device.UUID.String(); deviceID == targetID {
 			continue
 		}
 
@@ -178,6 +180,7 @@ func (processor *DeviceControlProcessor) subscribe(connection *device.Connection
 	processor.Printf("closing device[%s]", connection.UUID.String())
 }
 
+// Start will continously loop over registration & command channels delegating to private methods as necessary.
 func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwitch) {
 	defer wg.Done()
 

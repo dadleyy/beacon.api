@@ -39,14 +39,14 @@ func main() {
 		port     string
 		hostname string
 		envFile  string
-		redisUrl string
+		redisURL string
 	}{}
 
 	logger := log.New(os.Stdout, "beacon ", log.Ldate|log.Ltime|log.Lshortfile)
 	flag.StringVar(&options.port, "port", "12345", "the port to attach the http listener to")
 	flag.StringVar(&options.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
 	flag.StringVar(&options.envFile, "envfile", ".env", "the environment variable file to load")
-	flag.StringVar(&options.redisUrl, "redisuri", "redis://0.0.0.0:6379", "redis server uri")
+	flag.StringVar(&options.redisURL, "redisuri", "redis://0.0.0.0:6379", "redis server uri")
 	flag.Parse()
 
 	if valid := len(options.port) >= 1; !valid {
@@ -60,7 +60,7 @@ func main() {
 		return
 	}
 
-	redisConnection, e := redis.DialURL(options.redisUrl)
+	redisConnection, e := redis.DialURL(options.redisURL)
 
 	if e != nil {
 		logger.Printf("unable to establish connection to redis server: %s", e.Error())
