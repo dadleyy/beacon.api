@@ -4,7 +4,7 @@ import "log"
 import "github.com/garyburd/redigo/redis"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 
-// RegisRegistry implements the `Registry` interface w/ a redis backend
+// RedisRegistry implements the `Registry` interface w/ a redis backend
 type RedisRegistry struct {
 	*log.Logger
 	redis.Conn

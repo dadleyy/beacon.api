@@ -13,16 +13,23 @@ import "github.com/golang/protobuf/proto"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
+// WriteStream defines a send-only channel for io.Reader types
 type WriteStream chan<- io.Reader
+
+// ReadStream defines a receive-only channel for io.Reader types
 type ReadStream <-chan io.Reader
+
+// RegistrationStream defines a receive-only channel for new device connections
 type RegistrationStream <-chan *device.Connection
 
+// DeviceChannels is a convenience structure containing a ReadStream, WriteStream and RegistrationStream
 type DeviceChannels struct {
 	Commands      ReadStream
 	Feedback      WriteStream
 	Registrations RegistrationStream
 }
 
+// NewDeviceControlProcessor returns a new DeviceControlProcessor
 func NewDeviceControlProcessor(channels *DeviceChannels, store device.Registry) *DeviceControlProcessor {
 	logger := log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile)
 	var pool []*device.Connection

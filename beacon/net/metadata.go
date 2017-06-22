@@ -1,4 +1,4 @@
 package net
 
-// Basic string/interface map interface
+// Metadata is a basic string/interface map interface
 type Metadata map[string]interface{}

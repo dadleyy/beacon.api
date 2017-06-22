@@ -8,8 +8,7 @@ import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
-// The devices route engine is responsible for CRUD operations on the device objects themselves. It is required to have
-// access to the device registry for ID lookups into the device list.
+// Devices route engine is responsible for CRUD operations on the device objects themselves.
 type Devices struct {
 	device.Registry
 }
