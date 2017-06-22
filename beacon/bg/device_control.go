@@ -126,19 +126,11 @@ func (processor *DeviceControlProcessor) welcome(connection *device.Connection, 
 
 	defer writer.Close()
 
-	welcomeContents, e := proto.Marshal(&interchange.WelcomeMessage{})
-
-	if e != nil {
-		processor.Printf("unable to welcome device[%s]: %s", connection.GetID(), e.Error())
-		return
-	}
-
 	welcomeMessage := interchange.DeviceMessage{
-		RequestPath: "/welcome",
-		Authentication: &interchange.DeviceMessageAuth{
+		Authentication: &interchange.DeviceMessageAuthentication{
 			DeviceId: connection.GetID(),
 		},
-		RequestBody: welcomeContents,
+		RequestBody: &interchange.DeviceMessage_Welcome{&interchange.WelcomeMessage{}},
 	}
 
 	messageData, e := proto.Marshal(&welcomeMessage)

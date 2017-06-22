@@ -19,27 +19,24 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 		return runtime.LogicError("not-found")
 	}
 
-	command := interchange.ControlMessage{}
+	frame := interchange.ControlFrame{}
 
 	switch color {
 	case "green":
-		command.Green = 255
+		frame.Green = 255
 	case "red":
-		command.Red = 255
+		frame.Red = 255
 	default:
-		command.Blue = 255
+		frame.Blue = 255
 	}
 
-	commandData, e := proto.Marshal(&command)
-
-	if e != nil {
-		return net.HandlerResult{Errors: []error{e}}
+	command := interchange.ControlMessage{
+		Frames: []*interchange.ControlFrame{&frame},
 	}
 
 	message := interchange.DeviceMessage{
-		RequestPath:    "/device-state",
-		Authentication: &interchange.DeviceMessageAuth{deviceId},
-		RequestBody:    commandData,
+		Authentication: &interchange.DeviceMessageAuthentication{deviceId},
+		RequestBody:    &interchange.DeviceMessage_Control{&command},
 	}
 
 	runtime.Printf("attempting to update device %s to %s", deviceId, color)
