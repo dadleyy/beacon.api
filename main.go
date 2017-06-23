@@ -104,11 +104,12 @@ func main() {
 
 	deviceRoutes := &routes.Devices{&registry}
 	registrationRoutes := &routes.Registration{registrationStream}
+	messageRoutes := routes.DeviceMessages{&registry}
 
 	routes := net.RouteList{
 		net.RouteConfig{"GET", regexp.MustCompile("^/system")}:                routes.System,
 		net.RouteConfig{"GET", regexp.MustCompile("^/register")}:              registrationRoutes.Register,
-		net.RouteConfig{"POST", regexp.MustCompile("^/device-message")}:       routes.CreateDeviceMessage,
+		net.RouteConfig{"POST", regexp.MustCompile("^/device-message")}:       messageRoutes.CreateMessage,
 		net.RouteConfig{"GET", regexp.MustCompile(defs.DeviceShorthandRoute)}: deviceRoutes.UpdateShorthand,
 	}
 
