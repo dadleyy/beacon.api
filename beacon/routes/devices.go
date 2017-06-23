@@ -9,16 +9,35 @@ import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
+// NewDevicesAPI constructs the devices api
+func NewDevicesAPI(registry device.Registry) *Devices {
+	return &Devices{registry}
+}
+
 // Devices route engine is responsible for CRUD operations on the device objects themselves.
 type Devices struct {
-	device.Registry
+	registry device.Registry
+}
+
+// ListDevices will return a list of the UUIDs registered in the registry
+func (devices *Devices) ListDevices(runtime *net.RequestRuntime) net.HandlerResult {
+	ids, e := devices.registry.List()
+
+	if e != nil {
+		runtime.Printf("unable to lookup device id list: %s", e.Error())
+		return runtime.ServerError()
+	}
+
+	return net.HandlerResult{Results: ids}
 }
 
 // UpdateShorthand accepts a device id and a color (via url params from the req) and updates the device to that color.
 func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.HandlerResult {
-	deviceID, color := runtime.Get("uuid"), runtime.Get("color")
+	query, color := runtime.Get("uuid"), runtime.Get("color")
+	details, e := devices.registry.Find(query)
 
-	if exists := devices.Exists(deviceID); exists != true {
+	if e != nil {
+		runtime.Printf("shorthand update w/ invalid device id: %s (%s)", query, e.Error())
 		return runtime.LogicError("not-found")
 	}
 
@@ -46,11 +65,11 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 
 	message := interchange.DeviceMessage{
 		Type:           interchange.DeviceMessageType_CONTROL,
-		Authentication: &interchange.DeviceMessageAuthentication{deviceID},
+		Authentication: &interchange.DeviceMessageAuthentication{details.DeviceID},
 		Payload:        commandData,
 	}
 
-	runtime.Printf("attempting to update device %s to %s", deviceID, color)
+	runtime.Printf("attempting to update device %s to %s", details.DeviceID, color)
 
 	data, e := proto.Marshal(&message)
 
