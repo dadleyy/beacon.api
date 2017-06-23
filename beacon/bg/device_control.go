@@ -19,29 +19,26 @@ type WriteStream chan<- io.Reader
 // ReadStream defines a receive-only channel for io.Reader types
 type ReadStream <-chan io.Reader
 
-// RegistrationStream defines a receive-only channel DeviceMessageType new device connections
-type RegistrationStream <-chan *device.Connection
-
 // DeviceChannels is a convenience structure containing a ReadStream, WriteStream and RegistrationStream
 type DeviceChannels struct {
 	Commands      ReadStream
 	Feedback      WriteStream
-	Registrations RegistrationStream
+	Registrations device.RegistrationStream
 }
 
 // NewDeviceControlProcessor returns a new DeviceControlProcessor
-func NewDeviceControlProcessor(channels *DeviceChannels, store device.Registry) *DeviceControlProcessor {
+func NewDeviceControlProcessor(channels *DeviceChannels, store device.Index) *DeviceControlProcessor {
 	logger := log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile)
 	var pool []*device.Connection
 	return &DeviceControlProcessor{logger, channels, store, pool}
 }
 
 // The DeviceControlProcessor is used by the server to maintain the pool of websocket connections, register new device
-// connections w/ the registry and relay any messages along to the device.
+// connections w/ the index and relay any messages along to the device.
 type DeviceControlProcessor struct {
 	*log.Logger
 	channels *DeviceChannels
-	registry device.Registry
+	index    device.Index
 	pool     []*device.Connection
 }
 
@@ -109,7 +106,7 @@ func (processor *DeviceControlProcessor) unsubscribe(connection *device.Connecti
 	defer connection.Close()
 	pool, targetID := make([]*device.Connection, 0, len(processor.pool)-1), connection.UUID.String()
 
-	if e := processor.registry.Remove(targetID); e != nil {
+	if e := processor.index.Remove(targetID); e != nil {
 		processor.Printf("[warn] unable to get current list of devices - %s", e.Error())
 	}
 
@@ -163,10 +160,6 @@ func (processor *DeviceControlProcessor) welcome(connection *device.Connection, 
 	if _, e := writer.Write(messageData); e != nil {
 		processor.Printf("unable to push device id into store: %s", e.Error())
 		return
-	}
-
-	if e := processor.registry.Insert(connection.GetID()); e != nil {
-		processor.Printf("unable to push device id into store: %s", e.Error())
 	}
 
 	processor.Printf("welcomed device[%s]", connection.GetID())

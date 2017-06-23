@@ -15,21 +15,26 @@ type RequestRuntime struct {
 	url.Values
 	websocket.Upgrader
 	*log.Logger
+	*http.Request
 
 	responseWriter     http.ResponseWriter
-	request            *http.Request
 	backgroundChannels defs.BackgroundChannels
 }
 
 // ReadBody will attempt to fill the provided interface with values from the http request
 func (runtime *RequestRuntime) ReadBody(target interface{}) error {
-	decoder := json.NewDecoder(runtime.request.Body)
+	decoder := json.NewDecoder(runtime.Request.Body)
 
 	if e := decoder.Decode(target); e != nil {
 		return e
 	}
 
 	return nil
+}
+
+// ServerError returns a HandlerResult w/ the standardized server error response text
+func (runtime *RequestRuntime) ServerError() HandlerResult {
+	return HandlerResult{Errors: []error{fmt.Errorf("server-error")}}
 }
 
 // LogicError will wrap the provided strin the appropriate error prefix and return a HandlerResult
@@ -51,6 +56,6 @@ func (runtime *RequestRuntime) Publish(channelName string, message io.Reader) bo
 
 // Websocket attempts to updrade the request to a websocket connection
 func (runtime *RequestRuntime) Websocket() (*websocket.Conn, error) {
-	upgrader, responseWriter, request := runtime.Upgrader, runtime.responseWriter, runtime.request
+	upgrader, responseWriter, request := runtime.Upgrader, runtime.responseWriter, runtime.Request
 	return upgrader.Upgrade(responseWriter, request, nil)
 }

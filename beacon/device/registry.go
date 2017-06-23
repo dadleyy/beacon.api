@@ -1,8 +1,22 @@
 package device
 
-// The Registry interface defines a store that is used to add, remove and lookup string based elements
+// RegistrationRequest holds the information for a pending registration
+type RegistrationRequest struct {
+	SharedSecret string `json:"-"`
+	Name         string `json:"name"`
+}
+
+// RegistrationDetails holds the information about a given device connection
+type RegistrationDetails struct {
+	SharedSecret string `json:"-"`
+	Name         string `json:"name"`
+	DeviceID     string `json:"device_id"`
+}
+
+// Registry is an interface for allocating and filling registration requests
 type Registry interface {
-	Remove(string) error
-	Exists(string) bool
-	Insert(string) error
+	Find(string) (RegistrationDetails, error)
+	List() ([]RegistrationDetails, error)
+	Fill(string, string) error
+	Allocate(RegistrationRequest) error
 }

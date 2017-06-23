@@ -80,7 +80,7 @@ func main() {
 		defs.DeviceFeedbackChannelName: make(chan io.Reader, 10),
 	}
 
-	registrationStream := make(chan *device.Connection, 10)
+	registrationStream := make(device.RegistrationStream, 10)
 
 	registry := device.RedisRegistry{
 		Conn:   redisConnection,
@@ -102,15 +102,19 @@ func main() {
 
 	processors := []bg.Processor{control, &feedback}
 
-	deviceRoutes := &routes.Devices{&registry}
-	registrationRoutes := &routes.Registration{registrationStream}
+	deviceRoutes := routes.NewDevicesAPI(&registry)
+	registrationRoutes := routes.NewRegistrationAPI(registrationStream, &registry, redisConnection)
 	messageRoutes := routes.DeviceMessages{&registry}
 
 	routes := net.RouteList{
-		net.RouteConfig{"GET", regexp.MustCompile("^/system")}:                routes.System,
-		net.RouteConfig{"GET", regexp.MustCompile("^/register")}:              registrationRoutes.Register,
-		net.RouteConfig{"POST", regexp.MustCompile("^/device-message")}:       messageRoutes.CreateMessage,
+		net.RouteConfig{"GET", regexp.MustCompile(defs.SystemRoute)}: routes.System,
+
+		net.RouteConfig{"GET", regexp.MustCompile(defs.DeviceRegistrationRoute)}:  registrationRoutes.Register,
+		net.RouteConfig{"POST", regexp.MustCompile(defs.DeviceRegistrationRoute)}: registrationRoutes.Preregister,
+
+		net.RouteConfig{"POST", regexp.MustCompile(defs.DeviceMessagesRoute)}: messageRoutes.CreateMessage,
 		net.RouteConfig{"GET", regexp.MustCompile(defs.DeviceShorthandRoute)}: deviceRoutes.UpdateShorthand,
+		net.RouteConfig{"GET", regexp.MustCompile(defs.DeviceListRoute)}:      deviceRoutes.ListDevices,
 	}
 
 	runtime := net.ServerRuntime{

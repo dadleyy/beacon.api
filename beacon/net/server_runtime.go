@@ -32,9 +32,9 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 		Values:   params,
 		Upgrader: runtime.Upgrader,
 		Logger:   runtime.Logger,
+		Request:  request,
 
 		responseWriter:     responseWriter,
-		request:            request,
 		backgroundChannels: runtime.BackgroundChannels,
 	}
 

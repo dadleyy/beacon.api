@@ -10,7 +10,7 @@ import "github.com/dadleyy/beacon.api/beacon/interchange"
 
 // DeviceMessages is the route group that handles creating device messages
 type DeviceMessages struct {
-	device.Registry
+	device.Index
 }
 
 // CreateMessage publishes a new DeviceMessage to the control stream
