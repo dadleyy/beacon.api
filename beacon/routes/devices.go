@@ -1,6 +1,7 @@
 package routes
 
 import "bytes"
+import "math/rand"
 import "github.com/golang/protobuf/proto"
 
 import "github.com/dadleyy/beacon.api/beacon/net"
@@ -30,6 +31,8 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 		frame.Red = 255
 	case "blue":
 		frame.Blue = 255
+	case "rand":
+		frame = interchange.ControlFrame{devices.randColorValue(), devices.randColorValue(), devices.randColorValue()}
 	default:
 	}
 
@@ -58,4 +61,8 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 	runtime.Publish(defs.DeviceControlChannelName, bytes.NewBuffer(data))
 
 	return net.HandlerResult{}
+}
+
+func (devices *Devices) randColorValue() uint32 {
+	return uint32(rand.Intn(255))
 }
