@@ -28,8 +28,9 @@ func (messages *DeviceMessages) CreateMessage(runtime *net.RequestRuntime) net.H
 
 	runtime.Printf("creating device message for[%s]: %v", message.DeviceID, message)
 
-	if exists := messages.Exists(message.DeviceID); !exists {
+	if _, e := messages.Find(message.DeviceID); e != nil {
 		runtime.Printf("unable to locate device: %s", message.DeviceID)
+		return runtime.LogicError("not-found")
 	}
 
 	commandData, e := proto.Marshal(&interchange.ControlMessage{
