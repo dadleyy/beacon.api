@@ -42,7 +42,7 @@ func main() {
 		redisURL string
 	}{}
 
-	logger := log.New(os.Stdout, "beacon ", log.Ldate|log.Ltime|log.Lshortfile)
+	logger := log.New(os.Stdout, defs.MainLogPrefix, defs.DefaultLoggerFlags)
 	flag.StringVar(&options.port, "port", "12345", "the port to attach the http listener to")
 	flag.StringVar(&options.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
 	flag.StringVar(&options.envFile, "envfile", ".env", "the environment variable file to load")
@@ -84,7 +84,7 @@ func main() {
 
 	registry := device.RedisRegistry{
 		Conn:   redisConnection,
-		Logger: log.New(os.Stdout, "device registry ", log.Ldate|log.Ltime|log.Lshortfile),
+		Logger: log.New(os.Stdout, defs.RegistryLogPrefix, defs.DefaultLoggerFlags),
 	}
 
 	deviceChannels := bg.DeviceChannels{
@@ -96,7 +96,7 @@ func main() {
 	control := bg.NewDeviceControlProcessor(&deviceChannels, &registry)
 
 	feedback := bg.DeviceFeedbackProcessor{
-		Logger:    log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile),
+		Logger:    log.New(os.Stdout, defs.DeviceFeedbackLogPrefix, defs.DefaultLoggerFlags),
 		LogStream: backgroundChannels[defs.DeviceFeedbackChannelName],
 	}
 
@@ -118,7 +118,7 @@ func main() {
 	}
 
 	runtime := net.ServerRuntime{
-		Logger:             log.New(os.Stdout, "server runtime", log.Ldate|log.Ltime|log.Lshortfile),
+		Logger:             log.New(os.Stdout, defs.ServerRuntimeLogPrefix, defs.DefaultLoggerFlags),
 		Upgrader:           websocketUpgrader,
 		RouteList:          routes,
 		BackgroundChannels: backgroundChannels,

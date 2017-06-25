@@ -10,6 +10,7 @@ import "io/ioutil"
 import "github.com/gorilla/websocket"
 import "github.com/golang/protobuf/proto"
 
+import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
@@ -28,7 +29,7 @@ type DeviceChannels struct {
 
 // NewDeviceControlProcessor returns a new DeviceControlProcessor
 func NewDeviceControlProcessor(channels *DeviceChannels, store device.Index) *DeviceControlProcessor {
-	logger := log.New(os.Stdout, "device control ", log.Ldate|log.Ltime|log.Lshortfile)
+	logger := log.New(os.Stdout, defs.DeviceControlLogPrefix, defs.DefaultLoggerFlags)
 	var pool []*device.Connection
 	return &DeviceControlProcessor{logger, channels, store, pool}
 }
