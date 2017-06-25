@@ -31,6 +31,7 @@ func (registry *RedisRegistry) Allocate(details RegistrationRequest) error {
 // Find searches the registry based on a query string for the first matching device id
 func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
 	if registry.Exists(query) {
+		registry.Printf("found device by id: %s", query)
 		return registry.loadDetails(query)
 	}
 
@@ -55,10 +56,12 @@ func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
 
 		if fields[0] == query || fields[1] == query {
 			d := RegistrationDetails{SharedSecret: fields[2], DeviceID: fields[1], Name: fields[0]}
+			registry.Printf("found device by query: %s", query)
 			return d, nil
 		}
 	}
 
+	registry.Printf("did not find matching device: %s", query)
 	return RegistrationDetails{}, fmt.Errorf("not-found")
 }
 
