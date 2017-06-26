@@ -5,7 +5,7 @@ const (
 	DeviceListRoute = "^/devices$"
 
 	// DeviceShorthandRoute is the regular expression used for the device shorthand route
-	DeviceShorthandRoute = "^/devices/(?P<uuid>[\\d\\w\\-]+)/(?P<color>red|blue|green|off|rand)$"
+	DeviceShorthandRoute = "^/devices/(?P<uuid>[\\d\\w\\-]+)/(?P<color>red|blue|green|off|rand|[0-9a-f]{6})$"
 
 	// DeviceRegistrationRoute is used by devices to register with the server
 	DeviceRegistrationRoute = "^/register$"
