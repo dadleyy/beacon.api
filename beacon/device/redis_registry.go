@@ -30,9 +30,9 @@ func (registry *RedisRegistry) Allocate(details RegistrationRequest) error {
 
 // Find searches the registry based on a query string for the first matching device id
 func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
-	if registry.Exists(query) {
+	if registryKey := registry.genRegistryKey(query); registry.fastLookup(registryKey) {
 		registry.Printf("found device by id: %s", query)
-		return registry.loadDetails(registry.genRegistryKey(query))
+		return registry.loadDetails(registryKey)
 	}
 
 	response, e := registry.Do("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey))
@@ -141,12 +141,6 @@ func (registry *RedisRegistry) Remove(id string) error {
 	return e
 }
 
-// Exists extracts the full list of device keys and searches for the target id
-func (registry *RedisRegistry) Exists(id string) bool {
-	keys, e := registry.deviceFieldKeys(id)
-	return e == nil && len(keys) >= 1
-}
-
 // Insert executes the LPUSH command to the redis connection
 func (registry *RedisRegistry) Insert(id string) error {
 	if _, e := registry.Do("HSET", registry.genRegistryKey(id), defs.RedisDeviceIDField, id); e != nil {
@@ -158,8 +152,14 @@ func (registry *RedisRegistry) Insert(id string) error {
 	return e
 }
 
-func (registry *RedisRegistry) deviceFieldKeys(id string) ([]string, error) {
-	response, e := registry.Do("HKEYS", registry.genRegistryKey(id))
+// fastLookup extracts the full list of device keys and searches for the target id
+func (registry *RedisRegistry) fastLookup(registryKey string) bool {
+	keys, e := registry.deviceFieldKeys(registryKey)
+	return e == nil && len(keys) >= 1
+}
+
+func (registry *RedisRegistry) deviceFieldKeys(registryKey string) ([]string, error) {
+	response, e := registry.Do("HKEYS", registryKey)
 
 	if e != nil {
 		return nil, e
