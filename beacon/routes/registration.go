@@ -89,13 +89,13 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 	block, e := hex.DecodeString(encodedSecret)
 
 	if e != nil {
-		runtime.Printf("unable to push device id into store: %s", e.Error())
+		runtime.Printf("invalid hex shared secret: %s", e.Error())
 		connection.Close()
 		return net.HandlerResult{NoRender: true}
 	}
 
 	if _, e := x509.ParsePKIXPublicKey(block); e != nil {
-		runtime.Printf("unable to push device id into store: %s", e.Error())
+		runtime.Printf("invalid public key: %s", e.Error())
 		connection.Close()
 		return net.HandlerResult{NoRender: true}
 	}

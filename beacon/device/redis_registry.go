@@ -30,9 +30,9 @@ func (registry *RedisRegistry) Allocate(details RegistrationRequest) error {
 
 // Find searches the registry based on a query string for the first matching device id
 func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
-	if registry.Exists(query) {
+	if registryKey := registry.genRegistryKey(query); registry.fastLookup(registryKey) {
 		registry.Printf("found device by id: %s", query)
-		return registry.loadDetails(query)
+		return registry.loadDetails(registryKey)
 	}
 
 	response, e := registry.Do("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey))
@@ -93,6 +93,7 @@ func (registry *RedisRegistry) Fill(secret, uuid string) error {
 		}
 
 		if s == secret {
+			registry.Printf("found matching secret for device[%s], filling", uuid)
 			return registry.fill(k, uuid)
 		}
 	}
@@ -140,12 +141,6 @@ func (registry *RedisRegistry) Remove(id string) error {
 	return e
 }
 
-// Exists extracts the full list of device keys and searches for the target id
-func (registry *RedisRegistry) Exists(id string) bool {
-	keys, e := registry.deviceFieldKeys(id)
-	return e == nil && len(keys) >= 1
-}
-
 // Insert executes the LPUSH command to the redis connection
 func (registry *RedisRegistry) Insert(id string) error {
 	if _, e := registry.Do("HSET", registry.genRegistryKey(id), defs.RedisDeviceIDField, id); e != nil {
@@ -157,8 +152,14 @@ func (registry *RedisRegistry) Insert(id string) error {
 	return e
 }
 
-func (registry *RedisRegistry) deviceFieldKeys(id string) ([]string, error) {
-	response, e := registry.Do("HKEYS", registry.genRegistryKey(id))
+// fastLookup extracts the full list of device keys and searches for the target id
+func (registry *RedisRegistry) fastLookup(registryKey string) bool {
+	keys, e := registry.deviceFieldKeys(registryKey)
+	return e == nil && len(keys) >= 1
+}
+
+func (registry *RedisRegistry) deviceFieldKeys(registryKey string) ([]string, error) {
+	response, e := registry.Do("HKEYS", registryKey)
 
 	if e != nil {
 		return nil, e
@@ -167,6 +168,52 @@ func (registry *RedisRegistry) deviceFieldKeys(id string) ([]string, error) {
 	return redis.Strings(response, e)
 }
 
+// loadDetails returns the device registration details based on a provided device key
+func (registry *RedisRegistry) loadDetails(deviceKey string) (RegistrationDetails, error) {
+	f := struct {
+		id   string
+		name string
+		key  string
+	}{defs.RedisDeviceIDField, defs.RedisDeviceNameField, defs.RedisDeviceSecretField}
+	values, e := registry.hmgetstr(deviceKey, f.id, f.name, f.key)
+
+	if e != nil {
+		return RegistrationDetails{}, e
+	}
+
+	for _, v := range values {
+		if filled := len(v) > 1; !filled {
+			return RegistrationDetails{}, fmt.Errorf("invalid-device")
+		}
+	}
+
+	return RegistrationDetails{
+		DeviceID:     values[0],
+		Name:         values[1],
+		SharedSecret: values[2],
+	}, nil
+}
+
+// loadRequest loads the registration request associated w/ a given key
+func (registry *RedisRegistry) loadRequest(requestKey string) (RegistrationRequest, error) {
+	f := struct {
+		secret string
+		name   string
+	}{defs.RedisRegistrationSecretField, defs.RedisRegistrationNameField}
+	values, e := registry.hmgetstr(requestKey, f.secret, f.name)
+
+	if e != nil {
+		return RegistrationRequest{}, e
+	}
+
+	for _, v := range values {
+		if filled := len(v) > 1; !filled {
+			return RegistrationRequest{}, fmt.Errorf("invalid-request")
+		}
+	}
+
+	return RegistrationRequest{SharedSecret: values[0], Name: values[1]}, nil
+}
 func (registry *RedisRegistry) genAllocationKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisRegistrationRequestListKey, id)
 }
@@ -175,6 +222,7 @@ func (registry *RedisRegistry) genRegistryKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisDeviceRegistryKey, id)
 }
 
+// hmgetstr is a wrapper around the redis HMGET command where all fields are expected to be strings
 func (registry *RedisRegistry) hmgetstr(key string, fields ...string) ([]string, error) {
 	args := []interface{}{key}
 
@@ -194,15 +242,16 @@ func (registry *RedisRegistry) hmgetstr(key string, fields ...string) ([]string,
 		return nil, e
 	}
 
-	for _, s := range list {
+	for i, s := range list {
 		if empty := len(s) == 0; empty {
-			return nil, fmt.Errorf("invalid-entry")
+			return nil, fmt.Errorf("invalid-entry[%s:%s]", fields[i], s)
 		}
 	}
 
 	return list, nil
 }
 
+// hgetstr is a wrapper around HGET that casts to a string
 func (registry *RedisRegistry) hgetstr(key, field string) (string, error) {
 	response, e := registry.Do("HGET", key, field)
 
@@ -213,6 +262,8 @@ func (registry *RedisRegistry) hgetstr(key, field string) (string, error) {
 	return redis.String(response, e)
 }
 
+// fill is responsible for loading the information stored during the registration request and creating records in both
+// the device registry index as well as the device registry (keys w/ device hash information)
 func (registry *RedisRegistry) fill(requestKey, deviceID string) error {
 	request, e := registry.loadRequest(requestKey)
 
@@ -243,56 +294,4 @@ func (registry *RedisRegistry) fill(requestKey, deviceID string) error {
 	defer registry.Do("DEL", requestKey)
 
 	return nil
-}
-
-func (registry *RedisRegistry) loadDetails(deviceKey string) (RegistrationDetails, error) {
-	f := struct {
-		id   string
-		name string
-		key  string
-	}{defs.RedisDeviceIDField, defs.RedisDeviceNameField, defs.RedisDeviceSecretField}
-
-	values, e := registry.hmgetstr(deviceKey, f.id, f.name, f.key)
-
-	if e != nil {
-		return RegistrationDetails{}, e
-	}
-
-	for _, v := range values {
-		if filled := len(v) > 1; !filled {
-			return RegistrationDetails{}, fmt.Errorf("invalid-device")
-		}
-	}
-
-	return RegistrationDetails{
-		DeviceID:     values[0],
-		Name:         values[1],
-		SharedSecret: values[2],
-	}, nil
-}
-
-func (registry *RedisRegistry) loadRequest(requestKey string) (RegistrationRequest, error) {
-	f := struct {
-		secret string
-		name   string
-	}{defs.RedisRegistrationSecretField, defs.RedisRegistrationNameField}
-	response, e := registry.Do("HMGET", requestKey, f.secret, f.name)
-
-	if e != nil {
-		return RegistrationRequest{}, e
-	}
-
-	values, e := redis.Strings(response, e)
-
-	if e != nil {
-		return RegistrationRequest{}, e
-	}
-
-	for _, v := range values {
-		if filled := len(v) > 1; !filled {
-			return RegistrationRequest{}, fmt.Errorf("invalid-request")
-		}
-	}
-
-	return RegistrationRequest{SharedSecret: values[0], Name: values[1]}, nil
 }
