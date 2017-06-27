@@ -1,13 +1,19 @@
 package routes
 
 import "bytes"
+import "regexp"
 import "math/rand"
+import "encoding/hex"
 import "github.com/golang/protobuf/proto"
 
 import "github.com/dadleyy/beacon.api/beacon/net"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
+
+var (
+	hexColorRegex = regexp.MustCompilePOSIX("[0-9a-f]{6}")
+)
 
 // NewDevicesAPI constructs the devices api
 func NewDevicesAPI(registry device.Registry) *Devices {
@@ -43,16 +49,43 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 
 	frame := interchange.ControlFrame{}
 
-	switch color {
-	case "green":
+	switch {
+	case color == "green":
 		frame.Green = 255
-	case "red":
+	case color == "red":
 		frame.Red = 255
-	case "blue":
+	case color == "blue":
 		frame.Blue = 255
-	case "rand":
+	case color == "rand":
 		frame = interchange.ControlFrame{devices.randColorValue(), devices.randColorValue(), devices.randColorValue()}
+	case hexColorRegex.MatchString(color):
+		r, g, b := color[0:2], color[2:4], color[4:6]
+		buff := make([]byte, 1)
+
+		if _, e := hex.Decode(buff, []byte(r)); e != nil {
+			runtime.Printf("[warn] invalid hex received: %s", e.Error())
+			return runtime.LogicError("invalid-hex")
+		}
+
+		frame.Red = uint32(buff[0])
+
+		if _, e := hex.Decode(buff, []byte(g)); e != nil {
+			runtime.Printf("[warn] invalid hex received: %s", e.Error())
+			return runtime.LogicError("invalid-hex")
+		}
+
+		frame.Green = uint32(buff[0])
+
+		if _, e := hex.Decode(buff, []byte(b)); e != nil {
+			runtime.Printf("[warn] invalid hex received: %s", e.Error())
+			return runtime.LogicError("invalid-hex")
+		}
+
+		frame.Blue = uint32(buff[0])
+
+		runtime.Printf("received rgb color: rgb(%d,%d,%d)", frame.Red, frame.Green, frame.Blue)
 	default:
+		runtime.Printf("received tricky color: %s", color)
 	}
 
 	commandData, e := proto.Marshal(&interchange.ControlMessage{
