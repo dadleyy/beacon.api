@@ -44,9 +44,11 @@ func (messages *DeviceMessages) CreateMessage(runtime *net.RequestRuntime) net.H
 	}
 
 	deviceMessage := interchange.DeviceMessage{
-		Type:           interchange.DeviceMessageType_CONTROL,
-		Authentication: &interchange.DeviceMessageAuthentication{message.DeviceID},
-		Payload:        commandData,
+		Type: interchange.DeviceMessageType_CONTROL,
+		Authentication: &interchange.DeviceMessageAuthentication{
+			DeviceID: message.DeviceID,
+		},
+		Payload: commandData,
 	}
 
 	data, e := proto.Marshal(&deviceMessage)

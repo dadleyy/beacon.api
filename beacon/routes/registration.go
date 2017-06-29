@@ -9,6 +9,7 @@ import "github.com/satori/go.uuid"
 import "github.com/dadleyy/beacon.api/beacon/net"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
+import "github.com/dadleyy/beacon.api/beacon/security"
 
 // NewRegistrationAPI returns a constructed registration api
 func NewRegistrationAPI(stream device.RegistrationStream, registry device.Registry, store redis.Conn) *Registration {
@@ -86,16 +87,10 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 
 	encodedSecret, uuid := runtime.Header.Get(defs.APIAuthorizationHeader), uuid.NewV4()
 
-	block, e := hex.DecodeString(encodedSecret)
+	deviceKey, e := security.ParseDeviceKey(encodedSecret)
 
 	if e != nil {
 		runtime.Printf("invalid hex shared secret: %s", e.Error())
-		connection.Close()
-		return net.HandlerResult{NoRender: true}
-	}
-
-	if _, e := x509.ParsePKIXPublicKey(block); e != nil {
-		runtime.Printf("invalid public key: %s", e.Error())
 		connection.Close()
 		return net.HandlerResult{NoRender: true}
 	}
@@ -106,11 +101,6 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 		return net.HandlerResult{NoRender: true}
 	}
 
-	deviceConnection := device.Connection{
-		CommandStreamer: connection,
-		UUID:            uuid,
-	}
-
-	registrations.stream <- &deviceConnection
+	registrations.stream <- device.NewStreamerConnection(connection, uuid, deviceKey)
 	return net.HandlerResult{NoRender: true}
 }

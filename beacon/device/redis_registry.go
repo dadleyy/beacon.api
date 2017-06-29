@@ -135,8 +135,11 @@ func (registry *RedisRegistry) Remove(id string) error {
 		return e
 	}
 
-	registry.Printf("cleaning up device index...")
 	_, e := registry.Do("LREM", defs.RedisDeviceIndexKey, 1, id)
+
+	if e == nil {
+		registry.Printf("successfully cleaned %s from registry", id)
+	}
 
 	return e
 }

@@ -7,7 +7,6 @@ import "sync"
 import "time"
 import "io/ioutil"
 
-import "github.com/gorilla/websocket"
 import "github.com/golang/protobuf/proto"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
@@ -30,7 +29,7 @@ type DeviceChannels struct {
 // NewDeviceControlProcessor returns a new DeviceControlProcessor
 func NewDeviceControlProcessor(channels *DeviceChannels, store device.Index) *DeviceControlProcessor {
 	logger := log.New(os.Stdout, defs.DeviceControlLogPrefix, defs.DefaultLoggerFlags)
-	var pool []*device.Connection
+	var pool []device.Connection
 	return &DeviceControlProcessor{logger, channels, store, pool}
 }
 
@@ -40,7 +39,7 @@ type DeviceControlProcessor struct {
 	*log.Logger
 	channels *DeviceChannels
 	index    device.Index
-	pool     []*device.Connection
+	pool     []device.Connection
 }
 
 func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.WaitGroup) {
@@ -60,11 +59,12 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 		return
 	}
 
-	var device *device.Connection
+	var device device.Connection
 	targetID := controlMessage.Authentication.DeviceID
 
 	for _, d := range processor.pool {
-		if deviceID := d.UUID.String(); deviceID != targetID {
+		processor.Printf("comparing d[%s]", d.GetID())
+		if deviceID := d.GetID(); deviceID != targetID {
 			continue
 		}
 
@@ -77,24 +77,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 		return
 	}
 
-	writer, e := device.NextWriter(websocket.TextMessage)
-
-	if e != nil {
-		processor.Printf("unable to open writer to device (closing device): %s", e.Error())
-		processor.unsubscribe(device)
-		return
-	}
-
-	defer writer.Close()
-
-	data, e := proto.Marshal(&controlMessage)
-
-	if e != nil {
-		processor.Printf("unable to write command to device (closing device): %s", e.Error())
-		return
-	}
-
-	if _, e := writer.Write(data); e != nil {
+	if e := device.Send(controlMessage); e != nil {
 		processor.Printf("unable to write command to device (closing device): %s", e.Error())
 		processor.unsubscribe(device)
 		return
@@ -103,16 +86,16 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	processor.Printf("relayed command to device[%s]", device.GetID())
 }
 
-func (processor *DeviceControlProcessor) unsubscribe(connection *device.Connection) {
+func (processor *DeviceControlProcessor) unsubscribe(connection device.Connection) {
 	defer connection.Close()
-	pool, targetID := make([]*device.Connection, 0, len(processor.pool)-1), connection.UUID.String()
+	pool, targetID := make([]device.Connection, 0, len(processor.pool)-1), connection.GetID()
 
 	if e := processor.index.Remove(targetID); e != nil {
 		processor.Printf("[warn] unable to get current list of devices - %s", e.Error())
 	}
 
 	for _, device := range processor.pool {
-		if deviceID := device.UUID.String(); deviceID == targetID {
+		if deviceID := device.GetID(); deviceID == targetID {
 			continue
 		}
 
@@ -122,17 +105,8 @@ func (processor *DeviceControlProcessor) unsubscribe(connection *device.Connecti
 	processor.pool = pool
 }
 
-func (processor *DeviceControlProcessor) welcome(connection *device.Connection, wg *sync.WaitGroup) {
+func (processor *DeviceControlProcessor) welcome(connection device.Connection, wg *sync.WaitGroup) {
 	defer wg.Done()
-	writer, e := connection.NextWriter(websocket.TextMessage)
-
-	if e != nil {
-		processor.Printf("unable to get welcome writer for device[%s]: %s", connection.GetID(), e.Error())
-		return
-	}
-
-	defer writer.Close()
-
 	welcomeData, e := proto.Marshal(&interchange.WelcomeMessage{
 		DeviceID: connection.GetID(),
 		Body:     "Hello world, I am the body of the welcome message!",
@@ -151,45 +125,34 @@ func (processor *DeviceControlProcessor) welcome(connection *device.Connection, 
 		Payload: welcomeData,
 	}
 
-	messageData, e := proto.Marshal(&welcomeMessage)
-
-	if e != nil {
-		processor.Printf("unable to welcome device[%s]: %s", connection.GetID(), e.Error())
-		return
-	}
-
-	if _, e := writer.Write(messageData); e != nil {
-		processor.Printf("unable to push device id into store: %s", e.Error())
+	if e := connection.Send(welcomeMessage); e != nil {
+		processor.Printf("[WARN] unable to send welcome message: %s", e.Error())
 		return
 	}
 
 	processor.Printf("welcomed device[%s]", connection.GetID())
 }
 
-func (processor *DeviceControlProcessor) subscribe(connection *device.Connection, wg *sync.WaitGroup) {
+func (processor *DeviceControlProcessor) subscribe(connection device.Connection, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer processor.unsubscribe(connection)
 	processor.pool = append(processor.pool, connection)
+	processor.Printf("subscribing to device[%s]", connection.GetID())
+	connected := true
 
-	processor.Printf("subscribing to device[%s]", connection.UUID.String())
-
-	for {
-		messageType, reader, e := connection.NextReader()
+	for connected {
+		reader, e := connection.Receive()
 
 		if e != nil {
+			connected = false
 			processor.Printf("unable to read from device: %s", e.Error())
-			break
-		}
-
-		if messageType != websocket.TextMessage {
-			processor.Printf("received strange message from device, closing connection")
 			break
 		}
 
 		processor.channels.Feedback <- reader
 	}
 
-	processor.Printf("closing device[%s]", connection.UUID.String())
+	processor.Printf("closing device[%s]", connection.GetID())
 }
 
 // Start will continously loop over registration & command channels delegating to private methods as necessary.

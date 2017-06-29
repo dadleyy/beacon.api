@@ -36,10 +36,11 @@ func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Se
 
 func main() {
 	options := struct {
-		port     string
-		hostname string
-		envFile  string
-		redisURL string
+		port       string
+		hostname   string
+		envFile    string
+		redisURL   string
+		privateKey string
 	}{}
 
 	logger := log.New(os.Stdout, defs.MainLogPrefix, defs.DefaultLoggerFlags)
@@ -47,6 +48,7 @@ func main() {
 	flag.StringVar(&options.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
 	flag.StringVar(&options.envFile, "envfile", ".env", "the environment variable file to load")
 	flag.StringVar(&options.redisURL, "redisuri", "redis://0.0.0.0:6379", "redis server uri")
+	flag.StringVar(&options.privateKey, "private-key", ".keys/private.pem", "pem encoded rsa private key")
 	flag.Parse()
 
 	if valid := len(options.port) >= 1; !valid {
@@ -65,6 +67,17 @@ func main() {
 	if e != nil {
 		logger.Printf("unable to establish connection to redis server: %s", e.Error())
 		return
+	}
+
+	serverKey, e := security.ReadServerKeyFromFile(options.privateKey)
+
+	if e != nil {
+		logger.Printf("unable to load server key from file[%s]: %s", options.privateKey, e.Error())
+		return
+	}
+
+	if s, e := serverKey.SharedSecret(); e == nil {
+		logger.Printf("server key loaded, shared secret: \n%s\n\n", s)
 	}
 
 	defer redisConnection.Close()
@@ -123,6 +136,7 @@ func main() {
 		RouteList:          routes,
 		BackgroundChannels: backgroundChannels,
 		RedisConnection:    redisConnection,
+		Signer:             serverKey,
 	}
 
 	wg, signalChan, killers := sync.WaitGroup{}, make(chan os.Signal, 1), make([]bg.KillSwitch, 0)

@@ -16,6 +16,7 @@ type ServerRuntime struct {
 	websocket.Upgrader
 	RouteList
 	*log.Logger
+	defs.Signer
 
 	BackgroundChannels defs.BackgroundChannels
 	RedisConnection    redis.Conn
@@ -30,6 +31,7 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 
 	requestRuntime := RequestRuntime{
 		Values:   params,
+		Signer:   runtime.Signer,
 		Upgrader: runtime.Upgrader,
 		Logger:   runtime.Logger,
 		Request:  request,

@@ -6,6 +6,9 @@ const (
 	// MainLogPrefix is the log prefix for the main go routine
 	MainLogPrefix = "[beacon api] "
 
+	// ServerKeyLogPrefix log prefix used by server key
+	ServerKeyLogPrefix = "[server key] "
+
 	// RegistryLogPrefix is the log prefix for the device registry
 	RegistryLogPrefix = "[device registry] "
 
@@ -19,5 +22,5 @@ const (
 	DeviceFeedbackLogPrefix = "[device feedback] "
 
 	// DefaultLoggerFlags is the bitmask used to create default logging
-	DefaultLoggerFlags = log.Ldate | log.Ltime | log.Lshortfile
+	DefaultLoggerFlags = log.Ldate | log.Ltime
 )

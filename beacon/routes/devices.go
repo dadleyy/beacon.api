@@ -97,9 +97,11 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 	}
 
 	message := interchange.DeviceMessage{
-		Type:           interchange.DeviceMessageType_CONTROL,
-		Authentication: &interchange.DeviceMessageAuthentication{details.DeviceID},
-		Payload:        commandData,
+		Type: interchange.DeviceMessageType_CONTROL,
+		Authentication: &interchange.DeviceMessageAuthentication{
+			DeviceID: details.DeviceID,
+		},
+		Payload: commandData,
 	}
 
 	runtime.Printf("attempting to update device %s to %s", details.DeviceID, color)

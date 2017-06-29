@@ -16,6 +16,7 @@ type RequestRuntime struct {
 	websocket.Upgrader
 	*log.Logger
 	*http.Request
+	defs.Signer
 
 	responseWriter     http.ResponseWriter
 	backgroundChannels defs.BackgroundChannels
