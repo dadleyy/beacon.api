@@ -1,8 +1,6 @@
 package bg
 
-import "os"
 import "io"
-import "log"
 import "sync"
 import "time"
 import "io/ioutil"
@@ -11,6 +9,8 @@ import "github.com/golang/protobuf/proto"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
+import "github.com/dadleyy/beacon.api/beacon/logging"
+import "github.com/dadleyy/beacon.api/beacon/security"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
 // WriteStream defines a send-only channel for io.Reader types
@@ -27,16 +27,17 @@ type DeviceChannels struct {
 }
 
 // NewDeviceControlProcessor returns a new DeviceControlProcessor
-func NewDeviceControlProcessor(channels *DeviceChannels, store device.Index) *DeviceControlProcessor {
-	logger := log.New(os.Stdout, defs.DeviceControlLogPrefix, defs.DefaultLoggerFlags)
+func NewDeviceControlProcessor(channels *DeviceChannels, store device.Index, key *security.ServerKey) *DeviceControlProcessor {
+	logger := logging.New(defs.DeviceControlLogPrefix, logging.Yellow)
 	var pool []device.Connection
-	return &DeviceControlProcessor{logger, channels, store, pool}
+	return &DeviceControlProcessor{logger, key, channels, store, pool}
 }
 
 // The DeviceControlProcessor is used by the server to maintain the pool of websocket connections, register new device
 // connections w/ the index and relay any messages along to the device.
 type DeviceControlProcessor struct {
-	*log.Logger
+	*logging.Logger
+	key      *security.ServerKey
 	channels *DeviceChannels
 	index    device.Index
 	pool     []device.Connection
@@ -48,14 +49,14 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	messageData, e := ioutil.ReadAll(message)
 
 	if e != nil {
-		processor.Printf("unable to read message: %s", e.Error())
+		processor.Infof("unable to read message: %s", e.Error())
 		return
 	}
 
 	controlMessage := interchange.DeviceMessage{}
 
 	if e := proto.Unmarshal(messageData, &controlMessage); e != nil {
-		processor.Printf("unable to unmarshal message: %s", e.Error())
+		processor.Infof("unable to unmarshal message: %s", e.Error())
 		return
 	}
 
@@ -63,7 +64,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	targetID := controlMessage.Authentication.DeviceID
 
 	for _, d := range processor.pool {
-		processor.Printf("comparing d[%s]", d.GetID())
+		processor.Infof("comparing d[%s]", d.GetID())
 		if deviceID := d.GetID(); deviceID != targetID {
 			continue
 		}
@@ -73,17 +74,17 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	}
 
 	if device == nil {
-		processor.Printf("unable to locate device for command, command device id: %s", targetID)
+		processor.Warnf("unable to locate device for command, command device id: %s", targetID)
 		return
 	}
 
 	if e := device.Send(controlMessage); e != nil {
-		processor.Printf("unable to write command to device (closing device): %s", e.Error())
+		processor.Warnf("unable to write command to device (closing device): %s", e.Error())
 		processor.unsubscribe(device)
 		return
 	}
 
-	processor.Printf("relayed command to device[%s]", device.GetID())
+	processor.Infof("relayed command to device[%s]", device.GetID())
 }
 
 func (processor *DeviceControlProcessor) unsubscribe(connection device.Connection) {
@@ -91,7 +92,8 @@ func (processor *DeviceControlProcessor) unsubscribe(connection device.Connectio
 	pool, targetID := make([]device.Connection, 0, len(processor.pool)-1), connection.GetID()
 
 	if e := processor.index.Remove(targetID); e != nil {
-		processor.Printf("[warn] unable to get current list of devices - %s", e.Error())
+		processor.Errorf("unable to remove target from device index: %s", e.Error())
+		return
 	}
 
 	for _, device := range processor.pool {
@@ -107,13 +109,21 @@ func (processor *DeviceControlProcessor) unsubscribe(connection device.Connectio
 
 func (processor *DeviceControlProcessor) welcome(connection device.Connection, wg *sync.WaitGroup) {
 	defer wg.Done()
+	secret, e := processor.key.SharedSecret()
+
+	if e != nil {
+		processor.Infof("[FATAL] unable to generate shared secret: %s", e.Error())
+		return
+	}
+
 	welcomeData, e := proto.Marshal(&interchange.WelcomeMessage{
-		DeviceID: connection.GetID(),
-		Body:     "Hello world, I am the body of the welcome message!",
+		DeviceID:     connection.GetID(),
+		Body:         defs.WelcomeMessageBody,
+		SharedSecret: secret,
 	})
 
 	if e != nil {
-		processor.Printf("unable to welcome device[%s]: %s", connection.GetID(), e.Error())
+		processor.Infof("[FATAL] unable to welcome device[%s]: %s", connection.GetID(), e.Error())
 		return
 	}
 
@@ -126,18 +136,18 @@ func (processor *DeviceControlProcessor) welcome(connection device.Connection, w
 	}
 
 	if e := connection.Send(welcomeMessage); e != nil {
-		processor.Printf("[WARN] unable to send welcome message: %s", e.Error())
+		processor.Infof("[WARN] unable to send welcome message: %s", e.Error())
 		return
 	}
 
-	processor.Printf("welcomed device[%s]", connection.GetID())
+	processor.Infof("welcomed device[%s]", connection.GetID())
 }
 
 func (processor *DeviceControlProcessor) subscribe(connection device.Connection, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer processor.unsubscribe(connection)
 	processor.pool = append(processor.pool, connection)
-	processor.Printf("subscribing to device[%s]", connection.GetID())
+	processor.Infof("subscribing to device[%s]", connection.GetID())
 	connected := true
 
 	for connected {
@@ -145,21 +155,21 @@ func (processor *DeviceControlProcessor) subscribe(connection device.Connection,
 
 		if e != nil {
 			connected = false
-			processor.Printf("unable to read from device: %s", e.Error())
+			processor.Infof("unable to read from device: %s", e.Error())
 			break
 		}
 
 		processor.channels.Feedback <- reader
 	}
 
-	processor.Printf("closing device[%s]", connection.GetID())
+	processor.Infof("closing device[%s]", connection.GetID())
 }
 
 // Start will continously loop over registration & command channels delegating to private methods as necessary.
 func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwitch) {
 	defer wg.Done()
 
-	processor.Printf("device control processor starting")
+	processor.Infof("device control processor starting")
 
 	wait, timer, running := sync.WaitGroup{}, time.NewTicker(time.Minute), true
 	defer timer.Stop()
@@ -168,23 +178,23 @@ func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwit
 		select {
 		case message := <-processor.channels.Commands:
 			wait.Add(1)
-			processor.Printf("received message on read channel")
+			processor.Infof("received message on read channel")
 			go processor.handle(message, &wait)
 		case connection := <-processor.channels.Registrations:
 			wait.Add(2)
 			go processor.welcome(connection, &wait)
 			go processor.subscribe(connection, &wait)
 		case <-timer.C:
-			processor.Printf("pool len[%d] cap[%d]", len(processor.pool), cap(processor.pool))
+			processor.Infof("pool len[%d] cap[%d]", len(processor.pool), cap(processor.pool))
 		case <-stop:
-			processor.Printf("received kill signal, breaking")
+			processor.Infof("received kill signal, breaking")
 			running = false
 			break
 		}
 	}
 
 	for _, c := range processor.pool {
-		processor.Printf("closing connection: %s", c.GetID())
+		processor.Infof("closing connection: %s", c.GetID())
 		c.Close()
 	}
 

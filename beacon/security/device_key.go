@@ -20,10 +20,10 @@ type DeviceKey struct {
 
 // Sign implements the signer interface
 func (key *DeviceKey) Sign(out io.Writer, data []byte) error {
-	signedData, e := rsa.EncryptOAEP(sha256.New(), rand.Reader, key.PublicKey, data, []byte("beacon"))
+	signedData, e := rsa.EncryptOAEP(sha256.New(), rand.Reader, key.PublicKey, data, []byte(defs.DeviceMessageLabel))
 
 	if e != nil {
-		return nil
+		return e
 	}
 
 	_, e = out.Write(signedData)

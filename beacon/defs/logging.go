@@ -3,6 +3,18 @@ package defs
 import "log"
 
 const (
+	// DebugLogLevelTag is used for debugf logger calls
+	DebugLogLevelTag = "debug"
+
+	// InfoLogLevelTag is used for infof logger calls
+	InfoLogLevelTag = "info"
+
+	// WarnLogLevelTag is used for errorf logger calls
+	WarnLogLevelTag = "error"
+
+	// ErrorLogLevelTag is used for errorf logger calls
+	ErrorLogLevelTag = "error"
+
 	// MainLogPrefix is the log prefix for the main go routine
 	MainLogPrefix = "[beacon api] "
 

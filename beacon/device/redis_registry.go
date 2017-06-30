@@ -1,14 +1,14 @@
 package device
 
-import "log"
 import "fmt"
 import "github.com/satori/go.uuid"
 import "github.com/garyburd/redigo/redis"
 import "github.com/dadleyy/beacon.api/beacon/defs"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 
 // RedisRegistry implements the `Registry` interface w/ a redis backend
 type RedisRegistry struct {
-	*log.Logger
+	*logging.Logger
 	redis.Conn
 }
 
@@ -31,7 +31,7 @@ func (registry *RedisRegistry) Allocate(details RegistrationRequest) error {
 // Find searches the registry based on a query string for the first matching device id
 func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
 	if registryKey := registry.genRegistryKey(query); registry.fastLookup(registryKey) {
-		registry.Printf("found device by id: %s", query)
+		registry.Debugf("found device by id: %s", query)
 		return registry.loadDetails(registryKey)
 	}
 
@@ -56,12 +56,12 @@ func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
 
 		if fields[0] == query || fields[1] == query {
 			d := RegistrationDetails{SharedSecret: fields[2], DeviceID: fields[1], Name: fields[0]}
-			registry.Printf("found device by query: %s", query)
+			registry.Debugf("found device by query: %s", query)
 			return d, nil
 		}
 	}
 
-	registry.Printf("did not find matching device: %s", query)
+	registry.Warnf("did not find matching device: %s", query)
 	return RegistrationDetails{}, fmt.Errorf("not-found")
 }
 
@@ -93,7 +93,7 @@ func (registry *RedisRegistry) Fill(secret, uuid string) error {
 		}
 
 		if s == secret {
-			registry.Printf("found matching secret for device[%s], filling", uuid)
+			registry.Debugf("found matching secret for device[%s], filling", uuid)
 			return registry.fill(k, uuid)
 		}
 	}
@@ -138,7 +138,7 @@ func (registry *RedisRegistry) Remove(id string) error {
 	_, e := registry.Do("LREM", defs.RedisDeviceIndexKey, 1, id)
 
 	if e == nil {
-		registry.Printf("successfully cleaned %s from registry", id)
+		registry.Infof("successfully cleaned %s from registry", id)
 	}
 
 	return e
@@ -292,7 +292,7 @@ func (registry *RedisRegistry) fill(requestKey, deviceID string) error {
 		return e
 	}
 
-	registry.Printf("filling device registry w/ name[%s] id[%s]", request.Name, deviceID)
+	registry.Infof("filling device registry w/ name[%s] id[%s]", request.Name, deviceID)
 
 	defer registry.Do("DEL", requestKey)
 

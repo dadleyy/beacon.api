@@ -81,7 +81,7 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 	connection, e := runtime.Websocket()
 
 	if e != nil {
-		runtime.Printf("[warn] unable to upgrade websocket: %s", e.Error())
+		runtime.Printf("[WARN] unable to upgrade websocket: %s", e.Error())
 		return net.HandlerResult{Errors: []error{e}}
 	}
 
@@ -90,13 +90,13 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 	deviceKey, e := security.ParseDeviceKey(encodedSecret)
 
 	if e != nil {
-		runtime.Printf("invalid hex shared secret: %s", e.Error())
+		runtime.Printf("[WARN] invalid hex shared secret: %s", e.Error())
 		connection.Close()
 		return net.HandlerResult{NoRender: true}
 	}
 
 	if e := registrations.registry.Fill(encodedSecret, uuid.String()); e != nil {
-		runtime.Printf("unable to push device id into store: %s", e.Error())
+		runtime.Printf("[WARN] unable to push device id into store: %s", e.Error())
 		connection.Close()
 		return net.HandlerResult{NoRender: true}
 	}

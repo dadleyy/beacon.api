@@ -1,7 +1,6 @@
 package security
 
 import "os"
-import "io"
 import "log"
 import "fmt"
 import "io/ioutil"
@@ -9,6 +8,7 @@ import "crypto/rsa"
 import "crypto/x509"
 import "encoding/pem"
 import "encoding/hex"
+import "crypto/sha256"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
 
@@ -16,13 +16,6 @@ import "github.com/dadleyy/beacon.api/beacon/defs"
 type ServerKey struct {
 	*rsa.PrivateKey
 	*log.Logger
-}
-
-// Sign signs the data with the public part of the key
-func (key *ServerKey) Sign(out io.Writer, data []byte) error {
-	key.Printf("signing data: %s", data)
-	_, e := out.Write(data)
-	return e
 }
 
 // SharedSecret returns the string version of the rsa public key
@@ -33,7 +26,13 @@ func (key *ServerKey) SharedSecret() (string, error) {
 		return "", e
 	}
 
-	return hex.EncodeToString(publicKeyData), nil
+	h := sha256.New()
+
+	if _, e := h.Write(publicKeyData); e != nil {
+		return "", e
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // ReadServerKeyFromFile returns a new device key from a filename

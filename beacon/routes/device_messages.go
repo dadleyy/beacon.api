@@ -29,7 +29,7 @@ func (messages *DeviceMessages) CreateMessage(runtime *net.RequestRuntime) net.H
 	runtime.Printf("creating device message for[%s]: %v", message.DeviceID, message)
 
 	if _, e := messages.Find(message.DeviceID); e != nil {
-		runtime.Printf("unable to locate device: %s", message.DeviceID)
+		runtime.Printf("[WARN] unable to locate device: %s", message.DeviceID)
 		return runtime.LogicError("not-found")
 	}
 

@@ -14,9 +14,6 @@ LINT_RESULT=.lint-results
 EXE=beacon-api
 MAIN=$(wildcard ./main.go)
 
-COVERAGE=goverage
-COVERAGE_REPORT=coverage.out
-
 SRC_DIR=./beacon
 GO_SRC=$(wildcard $(MAIN) $(SRC_DIR)/**/*.go)
 
@@ -36,21 +33,17 @@ $(LINT_RESULT): $(GO_SRC)
 	$(LINT) $(LINT_FLAGS) $(shell $(GO) list $(SRC_DIR)/... | grep -v 'interchange')
 	touch $(LINT_RESULT)
 
-test: $(GO_SRC) $(COVERAGE_REPORT)
+test: $(GO_SRC)
 	$(GO) vet $(shell go list ./... | grep -vi 'vendor\|testing')
-
-$(COVERAGE_REPORT):
-	$(COVERAGE) -v -parallel=1 -covermode=atomic -coverprofile=$(COVERAGE_REPORT) $(shell $(GO) list $(SRC_DIR)/...)
+	$(GO) test -v -p=1 -covermode=atomic ./beacon/...
 
 $(VENDOR_DIR):
 	go get -u github.com/Masterminds/glide
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/golang/lint/golint
-	go get -u github.com/haya14busa/goverage
 	$(GLIDE) install
 
 clean:
-	rm -rf $(COVERAGE_REPORT)
 	rm -rf $(LINT_RESULT)
 	rm -rf $(VENDOR_DIR)
 	rm -rf $(EXE)

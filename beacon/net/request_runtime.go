@@ -2,21 +2,20 @@ package net
 
 import "io"
 import "fmt"
-import "log"
 import "net/url"
 import "net/http"
 import "encoding/json"
 import "github.com/gorilla/websocket"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 
 // RequestRuntime is used by the ServerRuntime to expose per-request packages of shared system interfaces
 type RequestRuntime struct {
 	url.Values
 	websocket.Upgrader
-	*log.Logger
+	*logging.Logger
 	*http.Request
-	defs.Signer
 
 	responseWriter     http.ResponseWriter
 	backgroundChannels defs.BackgroundChannels
