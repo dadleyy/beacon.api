@@ -101,6 +101,6 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 		return net.HandlerResult{NoRender: true}
 	}
 
-	registrations.stream <- device.NewStreamerConnection(connection, uuid, deviceKey)
+	registrations.stream <- device.NewStreamerConnection(connection, deviceKey, uuid)
 	return net.HandlerResult{NoRender: true}
 }

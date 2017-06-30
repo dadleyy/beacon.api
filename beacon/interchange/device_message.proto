@@ -3,6 +3,7 @@ package interchange;
 
 message DeviceMessageAuthentication {
   string DeviceID = 1;
+  string MessageDigest = 2;
 }
 
 enum DeviceMessageType {

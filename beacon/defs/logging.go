@@ -10,7 +10,7 @@ const (
 	InfoLogLevelTag = "info"
 
 	// WarnLogLevelTag is used for errorf logger calls
-	WarnLogLevelTag = "error"
+	WarnLogLevelTag = "warn"
 
 	// ErrorLogLevelTag is used for errorf logger calls
 	ErrorLogLevelTag = "error"
@@ -26,6 +26,9 @@ const (
 
 	// ServerRuntimeLogPrefix is the log prefix for the http server runtime
 	ServerRuntimeLogPrefix = "[server runtime] "
+
+	// DeviceConnectionLogPrefix is the log prefix for the device connections
+	DeviceConnectionLogPrefix = "[device connection] "
 
 	// DeviceControlLogPrefix is the log prefix for the device control processor
 	DeviceControlLogPrefix = "[device control] "

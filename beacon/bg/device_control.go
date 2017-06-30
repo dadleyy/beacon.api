@@ -112,7 +112,7 @@ func (processor *DeviceControlProcessor) welcome(connection device.Connection, w
 	secret, e := processor.key.SharedSecret()
 
 	if e != nil {
-		processor.Infof("[FATAL] unable to generate shared secret: %s", e.Error())
+		processor.Errorf("unable to generate shared secret: %s", e.Error())
 		return
 	}
 
@@ -123,7 +123,7 @@ func (processor *DeviceControlProcessor) welcome(connection device.Connection, w
 	})
 
 	if e != nil {
-		processor.Infof("[FATAL] unable to welcome device[%s]: %s", connection.GetID(), e.Error())
+		processor.Errorf("unable to welcome device[%s]: %s", connection.GetID(), e.Error())
 		return
 	}
 
@@ -136,7 +136,7 @@ func (processor *DeviceControlProcessor) welcome(connection device.Connection, w
 	}
 
 	if e := connection.Send(welcomeMessage); e != nil {
-		processor.Infof("[WARN] unable to send welcome message: %s", e.Error())
+		processor.Warnf("unable to send welcome message: %s", e.Error())
 		return
 	}
 

@@ -8,7 +8,6 @@ import "crypto/rsa"
 import "crypto/x509"
 import "encoding/pem"
 import "encoding/hex"
-import "crypto/sha256"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
 
@@ -26,13 +25,7 @@ func (key *ServerKey) SharedSecret() (string, error) {
 		return "", e
 	}
 
-	h := sha256.New()
-
-	if _, e := h.Write(publicKeyData); e != nil {
-		return "", e
-	}
-
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return hex.EncodeToString(publicKeyData), nil
 }
 
 // ReadServerKeyFromFile returns a new device key from a filename
