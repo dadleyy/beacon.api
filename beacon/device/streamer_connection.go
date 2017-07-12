@@ -27,32 +27,37 @@ type StreamerConnection struct {
 
 // Send writes the provided byte data to the next available writer from the underlying streamer interface
 func (connection *StreamerConnection) Send(message interchange.DeviceMessage) error {
-	// create the message's digest
+	// Create the message's digest - should be a sha256 hash
 	s := sha256.New()
 
+	// Write the message's payload (a serialized message type) into the hash.
 	if _, e := s.Write(message.Payload); e != nil {
 		return e
 	}
 
 	digestBuffer := bytes.NewBuffer([]byte{})
 
+	// Write the hash into our digest buffer using the Signer interface provided to us.
 	if e := connection.Sign(digestBuffer, s.Sum(nil)); e != nil {
 		return e
 	}
 
+	// Encode the digest to hex.
 	digestString := hex.EncodeToString(digestBuffer.Bytes())
 
 	connection.Debugf("sending digest string: %s", digestString)
 
-	// Set the authentication message digest
+	// Set the authentication message digest. This could use some cleanup - seems odd to piece this together here...
 	message.Authentication.MessageDigest = digestString
 
+	// Marshal the completed message w/ our digest field applied.
 	d, e := proto.Marshal(&message)
 
 	if e != nil {
 		return e
 	}
 
+	// Using the streamer interface, open a writer and write the finshed (serialized) message.
 	w, e := connection.NextWriter(defs.TextWriter)
 
 	if e != nil {

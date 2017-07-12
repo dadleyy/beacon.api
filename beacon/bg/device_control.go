@@ -43,6 +43,7 @@ type DeviceControlProcessor struct {
 	pool     []device.Connection
 }
 
+// handle receives a reader interface that contains a serialized device message and attempts
 func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -78,6 +79,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 		return
 	}
 
+	// At this point we've found a device to send to, write our message into it.
 	if e := device.Send(controlMessage); e != nil {
 		processor.Warnf("unable to write command to device (closing device): %s", e.Error())
 		processor.unsubscribe(device)
