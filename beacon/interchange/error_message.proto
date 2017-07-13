@@ -1,0 +1,7 @@
+syntax = "proto3";
+package interchange;
+
+message ErrorMessage {
+  string ShortDescription = 1;
+  string LongDescription = 2;
+}

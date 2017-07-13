@@ -114,12 +114,15 @@ func main() {
 	deviceRoutes := routes.NewDevicesAPI(&registry)
 	registrationRoutes := routes.NewRegistrationAPI(registrationStream, &registry, redisConnection)
 	messageRoutes := routes.DeviceMessages{&registry}
+	feedbackRoutes := routes.Feedback{&registry}
 
 	routes := net.RouteList{
 		net.RouteConfig{"GET", defs.SystemRoute}: routes.System,
 
 		net.RouteConfig{"GET", defs.DeviceRegistrationRoute}:  registrationRoutes.Register,
 		net.RouteConfig{"POST", defs.DeviceRegistrationRoute}: registrationRoutes.Preregister,
+
+		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.Create,
 
 		net.RouteConfig{"POST", defs.DeviceMessagesRoute}: messageRoutes.CreateMessage,
 		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,

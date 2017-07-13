@@ -14,7 +14,10 @@ var (
 	// DeviceRegistrationRoute is used by devices to register with the server
 	DeviceRegistrationRoute = regexp.MustCompile("^/register$")
 
-	// DeviceMessagesRoute is used to crate device messages
+	// DeviceFeedbackRoute is used to receive device feedback from clients.
+	DeviceFeedbackRoute = regexp.MustCompile("^/device-feedback$")
+
+	// DeviceMessagesRoute is used to create device messages.
 	DeviceMessagesRoute = regexp.MustCompile("^/device-messages$")
 
 	// SystemRoute prints out system information

@@ -1,0 +1,15 @@
+syntax = "proto3";
+package interchange;
+
+import "device_message.proto";
+
+enum FeedbackMessageType {
+  ERROR = 0;
+  REPORT = 1;
+}
+
+message FeedbackMessage {
+  FeedbackMessageType Type = 1;
+  DeviceMessageAuthentication Authentication = 2;
+  bytes Payload = 3;
+}
