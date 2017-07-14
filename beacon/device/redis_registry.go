@@ -68,6 +68,21 @@ func (registry *RedisRegistry) LogFeedback(message interchange.FeedbackMessage) 
 
 	feedbackKey, textBuffer := registry.genFeedbackKey(details.DeviceID), bytes.NewBuffer([]byte{})
 
+	count, e := registry.llen(feedbackKey)
+
+	if e != nil {
+		return e
+	}
+
+	if count >= defs.RedisMaxFeedbackEntries {
+		registry.Warnf("feedback stack[%s] exceeds max[%d] entries, trimming", feedbackKey, defs.RedisMaxFeedbackEntries)
+
+		if _, e := registry.Do("LTRIM", feedbackKey, 0, defs.RedisMaxFeedbackEntries-2); e != nil {
+			registry.Errorf("unable to trim device feedback stack: %s", e.Error())
+			return e
+		}
+	}
+
 	if e := proto.MarshalText(textBuffer, &message); e != nil {
 		return e
 	}
@@ -329,6 +344,17 @@ func (registry *RedisRegistry) hmgetstr(key string, fields ...string) ([]string,
 	}
 
 	return list, nil
+}
+
+// llen is a wrapper around HGET that casts to a string
+func (registry *RedisRegistry) llen(key string) (int, error) {
+	response, e := registry.Do("LLEN", key)
+
+	if e != nil {
+		return -1, e
+	}
+
+	return redis.Int(response, e)
 }
 
 // lrangestr is a wrapper around HGET that casts to a string

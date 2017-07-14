@@ -27,4 +27,7 @@ const (
 
 	// RedisRegistrationSecretField is the redis key used to store registration secrets
 	RedisRegistrationSecretField = "registration:secret"
+
+	// RedisMaxFeedbackEntries is the maximum amount of entries a device is allowed to have at any given time.
+	RedisMaxFeedbackEntries = 100
 )
