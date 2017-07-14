@@ -45,6 +45,7 @@ func (feedback *Feedback) List(runtime *net.RequestRuntime) net.HandlerResult {
 
 		if payload == nil || len(payload) == 0 {
 			results = append(results, nil)
+			continue
 		}
 
 		switch top.Type {
