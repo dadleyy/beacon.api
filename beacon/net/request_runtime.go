@@ -21,6 +21,11 @@ type RequestRuntime struct {
 	backgroundChannels defs.BackgroundChannels
 }
 
+// ContentType returns the request content type from the inbound request.
+func (runtime *RequestRuntime) ContentType() string {
+	return runtime.Header.Get("Content-Type")
+}
+
 // ReadBody will attempt to fill the provided interface with values from the http request
 func (runtime *RequestRuntime) ReadBody(target interface{}) error {
 	decoder := json.NewDecoder(runtime.Request.Body)
