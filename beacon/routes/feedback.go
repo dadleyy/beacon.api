@@ -1,5 +1,6 @@
 package routes
 
+import "strconv"
 import "io/ioutil"
 import "github.com/golang/protobuf/proto"
 
@@ -10,7 +11,58 @@ import "github.com/dadleyy/beacon.api/beacon/interchange"
 
 // Feedback is the route group that handles creating device feedback entries.
 type Feedback struct {
-	device.Index
+	device.FeedbackStore
+}
+
+type reportEntry struct {
+	Red   uint32 `json:"red"`
+	Green uint32 `json:"green"`
+	Blue  uint32 `json:"blue"`
+}
+
+// List validates a payload from the client and adds an entry to the device feedback log.
+func (feedback *Feedback) List(runtime *net.RequestRuntime) net.HandlerResult {
+	count, e := strconv.Atoi(runtime.GetQueryParam("count"))
+
+	if e != nil || count >= 1 != true || count >= 100 {
+		count = 1
+		runtime.Debugf("defaulting feedback count to 1")
+	}
+
+	entries, e := feedback.ListFeedback(runtime.GetQueryParam("device_id"), count-1)
+
+	if e != nil {
+		runtime.Warnf("unable to load device feedback: %s", e.Error())
+		return runtime.LogicError("not-found")
+	}
+
+	runtime.Debugf("found %d entries for device %s", len(entries), runtime.GetQueryParam("device_id"))
+
+	results := make([]interface{}, 0, len(entries))
+
+	for _, top := range entries {
+		payload := top.GetPayload()
+
+		if payload == nil || len(payload) == 0 {
+			results = append(results, nil)
+		}
+
+		switch top.Type {
+		case interchange.FeedbackMessageType_ERROR:
+			results = append(results, nil)
+		case interchange.FeedbackMessageType_REPORT:
+			report := interchange.ReportMessage{}
+
+			if e := proto.Unmarshal(payload, &report); e != nil {
+				runtime.Errorf("unable to unmarshal latest feedback payload: %s", e.Error())
+				return runtime.LogicError("invalid-state")
+			}
+
+			results = append(results, reportEntry{report.Red, report.Green, report.Blue})
+		}
+	}
+
+	return net.HandlerResult{Results: results}
 }
 
 // Create validates a payload from the client and adds an entry to the device feedback log.
@@ -41,11 +93,11 @@ func (feedback *Feedback) Create(runtime *net.RequestRuntime) net.HandlerResult 
 		return runtime.LogicError("invalid-request")
 	}
 
-	if _, e := feedback.Find(auth.DeviceID); e != nil {
+	if e := feedback.LogFeedback(message); e != nil {
 		runtime.Warnf("unable to find device: %s", e.Error())
 		return runtime.LogicError("not-found")
 	}
 
-	runtime.Infof("received feedback from device[%s]", auth.DeviceID)
+	runtime.Infof("successfully posted feedback from device[%s]", auth.DeviceID)
 	return net.HandlerResult{}
 }

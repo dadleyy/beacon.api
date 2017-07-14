@@ -123,10 +123,12 @@ func main() {
 		net.RouteConfig{"POST", defs.DeviceRegistrationRoute}: registrationRoutes.Preregister,
 
 		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.Create,
+		net.RouteConfig{"GET", defs.DeviceFeedbackRoute}:  feedbackRoutes.List,
 
 		net.RouteConfig{"POST", defs.DeviceMessagesRoute}: messageRoutes.CreateMessage,
 		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,
-		net.RouteConfig{"GET", defs.DeviceListRoute}:      deviceRoutes.ListDevices,
+
+		net.RouteConfig{"GET", defs.DeviceListRoute}: deviceRoutes.List,
 	}
 
 	runtime := net.ServerRuntime{

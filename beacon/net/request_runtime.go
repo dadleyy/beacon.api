@@ -21,6 +21,17 @@ type RequestRuntime struct {
 	backgroundChannels defs.BackgroundChannels
 }
 
+// GetQueryParam returns a parsed url.Values struct from the request query params.
+func (runtime *RequestRuntime) GetQueryParam(queryParam string) string {
+	values, e := url.ParseQuery(runtime.Request.URL.RawQuery)
+
+	if e != nil {
+		return ""
+	}
+
+	return values.Get(queryParam)
+}
+
 // ContentType returns the request content type from the inbound request.
 func (runtime *RequestRuntime) ContentType() string {
 	return runtime.Header.Get("Content-Type")

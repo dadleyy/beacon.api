@@ -1,15 +1,84 @@
 package device
 
 import "fmt"
+import "bytes"
 import "github.com/satori/go.uuid"
 import "github.com/garyburd/redigo/redis"
+import "github.com/golang/protobuf/proto"
+
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/logging"
+import "github.com/dadleyy/beacon.api/beacon/interchange"
 
 // RedisRegistry implements the `Registry` interface w/ a redis backend
 type RedisRegistry struct {
 	*logging.Logger
 	redis.Conn
+}
+
+// ListFeedback retrieves the latest feedback for a given device id.
+func (registry *RedisRegistry) ListFeedback(id string, count int) ([]interchange.FeedbackMessage, error) {
+	details, e := registry.Find(id)
+
+	if e != nil {
+		return nil, e
+	}
+
+	feedbackKey := registry.genFeedbackKey(details.DeviceID)
+
+	list, e := registry.lrangestr(feedbackKey, 0, count)
+
+	if e != nil {
+		return nil, e
+	}
+
+	if filled := len(list) >= 1; filled == false {
+		return nil, nil
+	}
+
+	results := make([]interchange.FeedbackMessage, 0, len(list))
+
+	for _, entry := range list {
+		message := interchange.FeedbackMessage{}
+
+		if e := proto.UnmarshalText(entry, &message); e != nil {
+			return nil, e
+		}
+
+		results = append(results, message)
+	}
+
+	registry.Debugf("found %d entries for device key: %s (returning %d)", len(list), feedbackKey, len(results))
+	return results, nil
+}
+
+// LogFeedback reserves a spot in the registry to be filled later
+func (registry *RedisRegistry) LogFeedback(message interchange.FeedbackMessage) error {
+	auth := message.GetAuthentication()
+
+	if auth == nil {
+		return fmt.Errorf("invalid feedback authentication")
+	}
+
+	details, e := registry.Find(auth.DeviceID)
+
+	if e != nil {
+		return e
+	}
+
+	feedbackKey, textBuffer := registry.genFeedbackKey(details.DeviceID), bytes.NewBuffer([]byte{})
+
+	if e := proto.MarshalText(textBuffer, &message); e != nil {
+		return e
+	}
+
+	if _, e := registry.Do("LPUSH", feedbackKey, textBuffer.String()); e != nil {
+		return e
+	}
+
+	registry.Debugf("logging state for device: %s", feedbackKey)
+
+	return nil
 }
 
 // Allocate reserves a spot in the registry to be filled later
@@ -135,6 +204,10 @@ func (registry *RedisRegistry) Remove(id string) error {
 		return e
 	}
 
+	if _, e := registry.Do("DEL", registry.genFeedbackKey(id)); e != nil {
+		return e
+	}
+
 	_, e := registry.Do("LREM", defs.RedisDeviceIndexKey, 1, id)
 
 	if e == nil {
@@ -225,6 +298,10 @@ func (registry *RedisRegistry) genRegistryKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisDeviceRegistryKey, id)
 }
 
+func (registry *RedisRegistry) genFeedbackKey(id string) string {
+	return fmt.Sprintf("%s:%s", defs.RedisDeviceFeedbackKey, id)
+}
+
 // hmgetstr is a wrapper around the redis HMGET command where all fields are expected to be strings
 func (registry *RedisRegistry) hmgetstr(key string, fields ...string) ([]string, error) {
 	args := []interface{}{key}
@@ -252,6 +329,17 @@ func (registry *RedisRegistry) hmgetstr(key string, fields ...string) ([]string,
 	}
 
 	return list, nil
+}
+
+// lrangestr is a wrapper around HGET that casts to a string
+func (registry *RedisRegistry) lrangestr(key string, start, end int) ([]string, error) {
+	response, e := registry.Do("LRANGE", key, start, end)
+
+	if e != nil {
+		return nil, e
+	}
+
+	return redis.Strings(response, e)
 }
 
 // hgetstr is a wrapper around HGET that casts to a string
