@@ -16,7 +16,7 @@ type ServerRuntime struct {
 	websocket.Upgrader
 	RouteList
 	*logging.Logger
-
+	ApplicationVersion string
 	BackgroundChannels defs.BackgroundChannels
 	RedisConnection    redis.Conn
 }
@@ -57,7 +57,7 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 
 	switch request.Header.Get("accepts") {
 	default:
-		renderer = &JSONRenderer{"0.0.1"}
+		renderer = &JSONRenderer{runtime.ApplicationVersion}
 	}
 
 	if e := renderer.Render(responseWriter, result); e != nil {
