@@ -137,6 +137,7 @@ func main() {
 		RouteList:          routes,
 		BackgroundChannels: backgroundChannels,
 		RedisConnection:    redisConnection,
+		ApplicationVersion: os.Getenv("API_VERSION"),
 	}
 
 	wg, signalChan, killers := sync.WaitGroup{}, make(chan os.Signal, 1), make([]bg.KillSwitch, 0)
