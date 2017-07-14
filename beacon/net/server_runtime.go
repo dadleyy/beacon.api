@@ -1,13 +1,13 @@
 package net
 
 import "fmt"
-import "log"
 import "net/http"
 
 import "github.com/gorilla/websocket"
 import "github.com/garyburd/redigo/redis"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 
 // ServerRuntime defines the object that implments the http.Handler interface used during application startup to open
 // the http server. It is also responsible for matching inbound requests with it's embedded routelist and creating the
@@ -15,7 +15,7 @@ import "github.com/dadleyy/beacon.api/beacon/defs"
 type ServerRuntime struct {
 	websocket.Upgrader
 	RouteList
-	*log.Logger
+	*logging.Logger
 
 	BackgroundChannels defs.BackgroundChannels
 	RedisConnection    redis.Conn
@@ -26,7 +26,7 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 	found, params, handler := runtime.match(request)
 	result := HandlerResult{Errors: []error{fmt.Errorf("not-found")}}
 
-	runtime.Printf("%s %s %s\n", request.Method, request.URL.Path, request.URL.Host)
+	runtime.Debugf("%s %s %s\n", request.Method, request.URL.Path, request.URL.Host)
 
 	requestRuntime := RequestRuntime{
 		Values:   params,
@@ -51,7 +51,7 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 	var renderer Renderer
 
 	if result.NoRender {
-		runtime.Printf("not rendering")
+		runtime.Debugf("skipping server runtime render, response already sent")
 		return
 	}
 
@@ -61,7 +61,7 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 	}
 
 	if e := renderer.Render(responseWriter, result); e != nil {
-		runtime.Fatalf("unable to render results: %s", e.Error())
+		runtime.Errorf("unable to render results: %s", e.Error())
 		responseWriter.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(responseWriter, "server error")
 	}

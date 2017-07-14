@@ -1,16 +1,12 @@
 package device
 
-import "github.com/satori/go.uuid"
+import "io"
+import "github.com/dadleyy/beacon.api/beacon/interchange"
 
-import "github.com/dadleyy/beacon.api/beacon/defs"
-
-// Connection defines the interface of a device connection - a wrapper around a CommandStreamer with a unique ID
-type Connection struct {
-	defs.CommandStreamer
-	uuid.UUID
-}
-
-// GetID returns the string version of the unique identifier for the connection
-func (connection *Connection) GetID() string {
-	return connection.UUID.String()
+// Connection defines an interface that describes the capabilities of a device connected to the api - send + receive
+type Connection interface {
+	Send(interchange.DeviceMessage) error
+	Receive() (io.Reader, error)
+	GetID() string
+	Close() error
 }

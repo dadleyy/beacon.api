@@ -6,7 +6,6 @@ import "fmt"
 import "log"
 import "flag"
 import "sync"
-import "regexp"
 import "context"
 import "syscall"
 import "net/http"
@@ -21,6 +20,7 @@ import "github.com/dadleyy/beacon.api/beacon/net"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/routes"
 import "github.com/dadleyy/beacon.api/beacon/device"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 import "github.com/dadleyy/beacon.api/beacon/security"
 
 func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Server) {
@@ -36,35 +36,48 @@ func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Se
 
 func main() {
 	options := struct {
-		port     string
-		hostname string
-		envFile  string
-		redisURL string
+		port       string
+		hostname   string
+		envFile    string
+		redisURL   string
+		privateKey string
 	}{}
 
-	logger := log.New(os.Stdout, defs.MainLogPrefix, defs.DefaultLoggerFlags)
+	logger := logging.New(defs.MainLogPrefix, logging.Green)
 	flag.StringVar(&options.port, "port", "12345", "the port to attach the http listener to")
 	flag.StringVar(&options.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
 	flag.StringVar(&options.envFile, "envfile", ".env", "the environment variable file to load")
 	flag.StringVar(&options.redisURL, "redisuri", "redis://0.0.0.0:6379", "redis server uri")
+	flag.StringVar(&options.privateKey, "private-key", ".keys/private.pem", "pem encoded rsa private key")
 	flag.Parse()
 
 	if valid := len(options.port) >= 1; !valid {
-		logger.Printf("invalid port: %s", options.port)
+		logger.Errorf("invalid port: %s", options.port)
 		flag.PrintDefaults()
 		return
 	}
 
 	if e := godotenv.Load(options.envFile); len(options.envFile) > 1 && e != nil {
-		logger.Printf("failed loading env file: %s", e.Error())
+		logger.Errorf("failed loading env file: %s", e.Error())
 		return
 	}
 
 	redisConnection, e := redis.DialURL(options.redisURL)
 
 	if e != nil {
-		logger.Printf("unable to establish connection to redis server: %s", e.Error())
+		logger.Errorf("unable to establish connection to redis server: %s", e.Error())
 		return
+	}
+
+	serverKey, e := security.ReadServerKeyFromFile(options.privateKey)
+
+	if e != nil {
+		logger.Errorf("unable to load server key from file[%s]: %s", options.privateKey, e.Error())
+		return
+	}
+
+	if s, e := serverKey.SharedSecret(); e == nil {
+		logger.Debugf("server key loaded, shared secret: \n%x\n\n", s)
 	}
 
 	defer redisConnection.Close()
@@ -84,7 +97,7 @@ func main() {
 
 	registry := device.RedisRegistry{
 		Conn:   redisConnection,
-		Logger: log.New(os.Stdout, defs.RegistryLogPrefix, defs.DefaultLoggerFlags),
+		Logger: logging.New(defs.RegistryLogPrefix, logging.Green),
 	}
 
 	deviceChannels := bg.DeviceChannels{
@@ -93,32 +106,33 @@ func main() {
 		Registrations: registrationStream,
 	}
 
-	control := bg.NewDeviceControlProcessor(&deviceChannels, &registry)
+	control := bg.NewDeviceControlProcessor(&deviceChannels, &registry, serverKey)
+	feedback := bg.NewDeviceFeedbackProcessor(backgroundChannels[defs.DeviceFeedbackChannelName])
 
-	feedback := bg.DeviceFeedbackProcessor{
-		Logger:    log.New(os.Stdout, defs.DeviceFeedbackLogPrefix, defs.DefaultLoggerFlags),
-		LogStream: backgroundChannels[defs.DeviceFeedbackChannelName],
-	}
-
-	processors := []bg.Processor{control, &feedback}
+	processors := []bg.Processor{control, feedback}
 
 	deviceRoutes := routes.NewDevicesAPI(&registry)
 	registrationRoutes := routes.NewRegistrationAPI(registrationStream, &registry, redisConnection)
 	messageRoutes := routes.DeviceMessages{&registry}
+	feedbackRoutes := routes.Feedback{&registry}
 
 	routes := net.RouteList{
-		net.RouteConfig{"GET", regexp.MustCompile(defs.SystemRoute)}: routes.System,
+		net.RouteConfig{"GET", defs.SystemRoute}: routes.System,
 
-		net.RouteConfig{"GET", regexp.MustCompile(defs.DeviceRegistrationRoute)}:  registrationRoutes.Register,
-		net.RouteConfig{"POST", regexp.MustCompile(defs.DeviceRegistrationRoute)}: registrationRoutes.Preregister,
+		net.RouteConfig{"GET", defs.DeviceRegistrationRoute}:  registrationRoutes.Register,
+		net.RouteConfig{"POST", defs.DeviceRegistrationRoute}: registrationRoutes.Preregister,
 
-		net.RouteConfig{"POST", regexp.MustCompile(defs.DeviceMessagesRoute)}: messageRoutes.CreateMessage,
-		net.RouteConfig{"GET", regexp.MustCompile(defs.DeviceShorthandRoute)}: deviceRoutes.UpdateShorthand,
-		net.RouteConfig{"GET", regexp.MustCompile(defs.DeviceListRoute)}:      deviceRoutes.ListDevices,
+		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.Create,
+		net.RouteConfig{"GET", defs.DeviceFeedbackRoute}:  feedbackRoutes.List,
+
+		net.RouteConfig{"POST", defs.DeviceMessagesRoute}: messageRoutes.CreateMessage,
+		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,
+
+		net.RouteConfig{"GET", defs.DeviceListRoute}: deviceRoutes.List,
 	}
 
 	runtime := net.ServerRuntime{
-		Logger:             log.New(os.Stdout, defs.ServerRuntimeLogPrefix, defs.DefaultLoggerFlags),
+		Logger:             logging.New(defs.ServerRuntimeLogPrefix, logging.Magenta),
 		Upgrader:           websocketUpgrader,
 		RouteList:          routes,
 		BackgroundChannels: backgroundChannels,
@@ -140,10 +154,10 @@ func main() {
 
 	go systemWatch(signalChan, killers, &server)
 
-	logger.Printf("starting server on: %s\n", serverAddress)
+	logger.Debugf("starting server on: %s\n", serverAddress)
 
 	if e := server.ListenAndServe(); e != nil {
-		logger.Printf("server shutdown: %s", e.Error())
+		logger.Debugf("server shutdown: %s", e.Error())
 	}
 
 	wg.Wait()

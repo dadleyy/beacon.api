@@ -15,7 +15,7 @@ type RegistrationDetails struct {
 
 // Registry is an interface for allocating and filling registration requests
 type Registry interface {
-	Find(string) (RegistrationDetails, error)
+	Index
 	List() ([]RegistrationDetails, error)
 	Fill(string, string) error
 	Allocate(RegistrationRequest) error

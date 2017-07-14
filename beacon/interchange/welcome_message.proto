@@ -4,4 +4,5 @@ package interchange;
 message WelcomeMessage {
   string DeviceID = 1;
   string Body = 2;
+  string SharedSecret = 3;
 }

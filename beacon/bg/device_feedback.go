@@ -1,13 +1,21 @@
 package bg
 
 import "io"
-import "log"
 import "sync"
+
+import "github.com/dadleyy/beacon.api/beacon/defs"
+import "github.com/dadleyy/beacon.api/beacon/logging"
+
+// NewDeviceFeedbackProcessor is responsible for receiving from the device feedback stream
+func NewDeviceFeedbackProcessor(feedback ReadStream) *DeviceFeedbackProcessor {
+	logger := logging.New(defs.DeviceFeedbackLogPrefix, logging.White)
+	return &DeviceFeedbackProcessor{logger, feedback}
+}
 
 // DeviceFeedbackProcessor is responsible for receiving from the device feedback stream
 type DeviceFeedbackProcessor struct {
-	*log.Logger
-	LogStream <-chan io.Reader
+	*logging.Logger
+	feedback <-chan io.Reader
 }
 
 // Start is the Processor#Start implementation
@@ -15,14 +23,14 @@ func (processor *DeviceFeedbackProcessor) Start(wg *sync.WaitGroup, stop KillSwi
 	defer wg.Done()
 	running := true
 
-	processor.Printf("device feedback processor starting")
+	processor.Infof("device feedback processor starting")
 
 	for running {
 		select {
-		case <-processor.LogStream:
-			processor.Printf("receieved message from device")
+		case <-processor.feedback:
+			processor.Debugf("receieved message from device")
 		case <-stop:
-			processor.Printf("received kill signal, breaking")
+			processor.Warnf("received kill signal, breaking")
 			running = false
 			break
 		}

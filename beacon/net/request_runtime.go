@@ -2,23 +2,39 @@ package net
 
 import "io"
 import "fmt"
-import "log"
 import "net/url"
 import "net/http"
 import "encoding/json"
 import "github.com/gorilla/websocket"
 
 import "github.com/dadleyy/beacon.api/beacon/defs"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 
 // RequestRuntime is used by the ServerRuntime to expose per-request packages of shared system interfaces
 type RequestRuntime struct {
 	url.Values
 	websocket.Upgrader
-	*log.Logger
+	*logging.Logger
 	*http.Request
 
 	responseWriter     http.ResponseWriter
 	backgroundChannels defs.BackgroundChannels
+}
+
+// GetQueryParam returns a parsed url.Values struct from the request query params.
+func (runtime *RequestRuntime) GetQueryParam(queryParam string) string {
+	values, e := url.ParseQuery(runtime.Request.URL.RawQuery)
+
+	if e != nil {
+		return ""
+	}
+
+	return values.Get(queryParam)
+}
+
+// ContentType returns the request content type from the inbound request.
+func (runtime *RequestRuntime) ContentType() string {
+	return runtime.Header.Get("Content-Type")
 }
 
 // ReadBody will attempt to fill the provided interface with values from the http request

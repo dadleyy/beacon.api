@@ -1,0 +1,8 @@
+syntax = "proto3";
+package interchange;
+
+message ReportMessage {
+  uint32 Red = 1;
+  uint32 Green = 2;
+  uint32 Blue = 3;
+}

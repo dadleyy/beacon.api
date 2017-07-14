@@ -1,5 +1,5 @@
-hash: 031e962de7e591971eed4e567322b58c9aeca8f40a5c4d5a2e182ac8a7a1ecda
-updated: 2017-06-21T15:52:50.912291938-04:00
+hash: 9b80da81ecaeace3da7ae6ea2d330cad31ad4b94f7f223c010e5688d3f3c5747
+updated: 2017-06-30T10:35:21.807801678-04:00
 imports:
 - name: github.com/garyburd/redigo
   version: 433969511232c397de61b1442f9fd49ec06ae9ba
@@ -11,9 +11,11 @@ imports:
   subpackages:
   - proto
 - name: github.com/gorilla/websocket
-  version: 3ab3a8b8831546bd18fd182c20687ca853b2bb13
+  version: ea4d1f681babbce9545c9c5f3d5194a789c89f5b
 - name: github.com/joho/godotenv
   version: 726cc8b906e3d31c70a9671c90a13716a8d3f50d
 - name: github.com/satori/go.uuid
   version: 879c5887cd475cd7864858769793b2ceb0d44feb
+- name: github.com/ttacon/chalk
+  version: 76b3c8b611dea8f83e49e9ce81fc2b189e0ef3d2
 testImports: []
