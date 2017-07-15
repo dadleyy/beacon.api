@@ -14,6 +14,9 @@ var (
 	// DeviceRegistrationRoute is used by devices to register with the server
 	DeviceRegistrationRoute = regexp.MustCompile("^/register$")
 
+	// DeviceTokensRoute is used to create device tokens for a given device.
+	DeviceTokensRoute = regexp.MustCompile("^/device-tokens$")
+
 	// DeviceFeedbackRoute is used to receive device feedback from clients.
 	DeviceFeedbackRoute = regexp.MustCompile("^/device-feedback$")
 

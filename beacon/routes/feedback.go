@@ -9,6 +9,11 @@ import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
+// NewFeedbackAPI returns a new initialized feed back api
+func NewFeedbackAPI(store device.FeedbackStore) *Feedback {
+	return &Feedback{store}
+}
+
 // Feedback is the route group that handles creating device feedback entries.
 type Feedback struct {
 	device.FeedbackStore

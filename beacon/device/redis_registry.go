@@ -18,7 +18,7 @@ type RedisRegistry struct {
 
 // ListFeedback retrieves the latest feedback for a given device id.
 func (registry *RedisRegistry) ListFeedback(id string, count int) ([]interchange.FeedbackMessage, error) {
-	details, e := registry.Find(id)
+	details, e := registry.FindDevice(id)
 
 	if e != nil {
 		return nil, e
@@ -60,7 +60,7 @@ func (registry *RedisRegistry) LogFeedback(message interchange.FeedbackMessage) 
 		return fmt.Errorf("invalid feedback authentication")
 	}
 
-	details, e := registry.Find(auth.DeviceID)
+	details, e := registry.FindDevice(auth.DeviceID)
 
 	if e != nil {
 		return e
@@ -96,8 +96,8 @@ func (registry *RedisRegistry) LogFeedback(message interchange.FeedbackMessage) 
 	return nil
 }
 
-// Allocate reserves a spot in the registry to be filled later
-func (registry *RedisRegistry) Allocate(details RegistrationRequest) error {
+// AllocateRegistration reserves a spot in the registry to be filled later
+func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest) error {
 	allocationID := uuid.NewV4().String()
 	registryKey := registry.genAllocationKey(allocationID)
 
@@ -112,8 +112,8 @@ func (registry *RedisRegistry) Allocate(details RegistrationRequest) error {
 	return nil
 }
 
-// Find searches the registry based on a query string for the first matching device id
-func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
+// FindDevice searches the registry based on a query string for the first matching device id
+func (registry *RedisRegistry) FindDevice(query string) (RegistrationDetails, error) {
 	if registryKey := registry.genRegistryKey(query); registry.fastLookup(registryKey) {
 		registry.Debugf("found device by id: %s", query)
 		return registry.loadDetails(registryKey)
@@ -149,8 +149,8 @@ func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
 	return RegistrationDetails{}, fmt.Errorf("not-found")
 }
 
-// Fill searches the pending registrations and adds the new uuid to the index
-func (registry *RedisRegistry) Fill(secret, uuid string) error {
+// FillRegistration searches the pending registrations and adds the new uuid to the index
+func (registry *RedisRegistry) FillRegistration(secret, uuid string) error {
 	response, e := registry.Do("KEYS", fmt.Sprintf("%s*", defs.RedisRegistrationRequestListKey))
 
 	if e != nil {
@@ -185,8 +185,13 @@ func (registry *RedisRegistry) Fill(secret, uuid string) error {
 	return fmt.Errorf("not-found")
 }
 
-// List prints out a list of all the registered devices
-func (registry *RedisRegistry) List() ([]RegistrationDetails, error) {
+// CreateToken creates a new auth token for a given device id
+func (registry *RedisRegistry) CreateToken(deviceID string) (string, error) {
+	return "", fmt.Errorf("not-implemented")
+}
+
+// ListRegistrations prints out a list of all the registered devices
+func (registry *RedisRegistry) ListRegistrations() ([]RegistrationDetails, error) {
 	response, e := registry.Do("LRANGE", defs.RedisDeviceIndexKey, 0, -1)
 	var results []RegistrationDetails
 
@@ -213,8 +218,8 @@ func (registry *RedisRegistry) List() ([]RegistrationDetails, error) {
 	return results, nil
 }
 
-// Remove executes the LREM command to the redis connection
-func (registry *RedisRegistry) Remove(id string) error {
+// RemoveDevice executes the LREM command to the redis connection
+func (registry *RedisRegistry) RemoveDevice(id string) error {
 	if _, e := registry.Do("DEL", registry.genRegistryKey(id)); e != nil {
 		return e
 	}

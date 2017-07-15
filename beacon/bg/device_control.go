@@ -93,7 +93,7 @@ func (processor *DeviceControlProcessor) unsubscribe(connection device.Connectio
 	defer connection.Close()
 	pool, targetID := make([]device.Connection, 0, len(processor.pool)-1), connection.GetID()
 
-	if e := processor.index.Remove(targetID); e != nil {
+	if e := processor.index.RemoveDevice(targetID); e != nil {
 		processor.Errorf("unable to remove target from device index: %s", e.Error())
 		return
 	}
