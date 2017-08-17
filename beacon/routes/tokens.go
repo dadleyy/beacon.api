@@ -81,7 +81,7 @@ func (tokens *Tokens) create(deviceID, name string) net.HandlerResult {
 		return net.HandlerResult{Errors: []error{fmt.Errorf("server-error")}}
 	}
 
-	tokens.Debugf("created token: %s", token)
+	tokens.Debugf("created token: %v", token)
 
-	return net.HandlerResult{}
+	return net.HandlerResult{Results: []device.TokenDetails{token}}
 }

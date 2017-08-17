@@ -2,16 +2,16 @@ package defs
 
 const (
 	// RedisDeviceIndexKey is the key used by the regis device registry to store device ids
-	RedisDeviceIndexKey = "beacon:device_index"
+	RedisDeviceIndexKey = "beacon:device-index"
 
 	// RedisDeviceRegistryKey is the key used by the regis device registry to store device information
-	RedisDeviceRegistryKey = "beacon:device_registry"
+	RedisDeviceRegistryKey = "beacon:device-registry"
 
 	// RedisDeviceFeedbackKey is the key used by the regis device registry to store device feedback
-	RedisDeviceFeedbackKey = "beacon:device_feedback"
+	RedisDeviceFeedbackKey = "beacon:device-feedback"
 
 	// RedisRegistrationRequestListKey is the key used for registration requests
-	RedisRegistrationRequestListKey = "beacon:registration_requests"
+	RedisRegistrationRequestListKey = "beacon:registration-requests"
 
 	// RedisDeviceIDField is the field that contains the unique id of the device
 	RedisDeviceIDField = "device:uuid"

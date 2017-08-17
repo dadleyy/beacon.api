@@ -193,26 +193,27 @@ func (registry *RedisRegistry) FindToken(token string) (TokenDetails, error) {
 }
 
 // CreateToken creates a new auth token for a given device id
-func (registry *RedisRegistry) CreateToken(deviceID, tokenName string) (string, error) {
+func (registry *RedisRegistry) CreateToken(deviceID, tokenName string) (TokenDetails, error) {
 	listKey, keyBytes := registry.genTokenListKey(deviceID), make([]byte, defs.SecurityUserDeviceTokenSize)
+	empty := TokenDetails{}
 
 	if _, e := rand.Read(keyBytes); e != nil {
-		return "", e
+		return empty, e
 	}
 
 	rawToken := hex.EncodeToString(keyBytes)
 
 	if _, e := registry.Do("LPUSH", listKey, rawToken); e != nil {
-		return "", e
+		return empty, e
 	}
 
 	registryKey := registry.genTokenRegistrationKey(rawToken)
 
 	if e := registry.hset(registryKey, defs.RedisDeviceTokenNameField, tokenName); e != nil {
-		return "", e
+		return empty, e
 	}
 
-	return rawToken, fmt.Errorf("not-implemented")
+	return TokenDetails{deviceID, rawToken, tokenName}, nil
 }
 
 // ListRegistrations prints out a list of all the registered devices
@@ -245,11 +246,13 @@ func (registry *RedisRegistry) ListRegistrations() ([]RegistrationDetails, error
 
 // RemoveDevice executes the LREM command to the redis connection
 func (registry *RedisRegistry) RemoveDevice(id string) error {
-	if _, e := registry.Do("DEL", registry.genRegistryKey(id)); e != nil {
+	regKey, feedKey := registry.genRegistryKey(id), registry.genFeedbackKey(id)
+
+	if e := registry.del(regKey); e != nil {
 		return e
 	}
 
-	if _, e := registry.Do("DEL", registry.genFeedbackKey(id)); e != nil {
+	if e := registry.del(feedKey); e != nil {
 		return e
 	}
 
@@ -259,7 +262,19 @@ func (registry *RedisRegistry) RemoveDevice(id string) error {
 		registry.Infof("successfully cleaned %s from registry", id)
 	}
 
-	return e
+	tokensListKey := registry.genTokenListKey(id)
+
+	tokens, e := registry.lrangestr(tokensListKey, 0, -1)
+
+	if e != nil {
+		return e
+	}
+
+	for _, t := range tokens {
+		registry.del(registry.genTokenRegistrationKey(t))
+	}
+
+	return registry.del(tokensListKey)
 }
 
 // Insert executes the LPUSH command to the redis connection
@@ -382,6 +397,12 @@ func (registry *RedisRegistry) hmgetstr(key string, fields ...string) ([]string,
 	}
 
 	return list, nil
+}
+
+// del is a wrapper around DEL that casts to a string
+func (registry *RedisRegistry) del(key string) error {
+	_, e := registry.Do("DEL", key)
+	return e
 }
 
 // llen is a wrapper around HGET that casts to a string
