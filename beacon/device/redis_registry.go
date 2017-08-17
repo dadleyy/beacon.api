@@ -2,6 +2,8 @@ package device
 
 import "fmt"
 import "bytes"
+import "crypto/rand"
+import "encoding/hex"
 import "github.com/satori/go.uuid"
 import "github.com/garyburd/redigo/redis"
 import "github.com/golang/protobuf/proto"
@@ -101,11 +103,11 @@ func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest)
 	allocationID := uuid.NewV4().String()
 	registryKey := registry.genAllocationKey(allocationID)
 
-	if _, e := registry.Do("HSET", registryKey, defs.RedisRegistrationNameField, details.Name); e != nil {
+	if e := registry.hset(registryKey, defs.RedisRegistrationNameField, details.Name); e != nil {
 		return e
 	}
 
-	if _, e := registry.Do("HSET", registryKey, defs.RedisRegistrationSecretField, details.SharedSecret); e != nil {
+	if e := registry.hset(registryKey, defs.RedisRegistrationSecretField, details.SharedSecret); e != nil {
 		return e
 	}
 
@@ -185,9 +187,32 @@ func (registry *RedisRegistry) FillRegistration(secret, uuid string) error {
 	return fmt.Errorf("not-found")
 }
 
+// FindToken searches the token store for the token details given the token key.
+func (registry *RedisRegistry) FindToken(token string) (TokenDetails, error) {
+	return TokenDetails{}, fmt.Errorf("not-implemented")
+}
+
 // CreateToken creates a new auth token for a given device id
-func (registry *RedisRegistry) CreateToken(deviceID string) (string, error) {
-	return "", fmt.Errorf("not-implemented")
+func (registry *RedisRegistry) CreateToken(deviceID, tokenName string) (string, error) {
+	listKey, keyBytes := registry.genTokenListKey(deviceID), make([]byte, defs.SecurityUserDeviceTokenSize)
+
+	if _, e := rand.Read(keyBytes); e != nil {
+		return "", e
+	}
+
+	rawToken := hex.EncodeToString(keyBytes)
+
+	if _, e := registry.Do("LPUSH", listKey, rawToken); e != nil {
+		return "", e
+	}
+
+	registryKey := registry.genTokenRegistrationKey(rawToken)
+
+	if e := registry.hset(registryKey, defs.RedisDeviceTokenNameField, tokenName); e != nil {
+		return "", e
+	}
+
+	return rawToken, fmt.Errorf("not-implemented")
 }
 
 // ListRegistrations prints out a list of all the registered devices
@@ -314,12 +339,20 @@ func (registry *RedisRegistry) genAllocationKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisRegistrationRequestListKey, id)
 }
 
+func (registry *RedisRegistry) genTokenRegistrationKey(token string) string {
+	return fmt.Sprintf("%s:%s", defs.RedisDeviceTokenRegistrationKey, token)
+}
+
 func (registry *RedisRegistry) genRegistryKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisDeviceRegistryKey, id)
 }
 
 func (registry *RedisRegistry) genFeedbackKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisDeviceFeedbackKey, id)
+}
+
+func (registry *RedisRegistry) genTokenListKey(id string) string {
+	return fmt.Sprintf("%s:%s", defs.RedisDeviceTokenListKey, id)
 }
 
 // hmgetstr is a wrapper around the redis HMGET command where all fields are expected to be strings
@@ -371,6 +404,12 @@ func (registry *RedisRegistry) lrangestr(key string, start, end int) ([]string, 
 	}
 
 	return redis.Strings(response, e)
+}
+
+// hset is a wrapper around hset
+func (registry *RedisRegistry) hset(key, field, value string) error {
+	_, e := registry.Do("HSET", key, field, value)
+	return e
 }
 
 // hgetstr is a wrapper around HGET that casts to a string

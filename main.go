@@ -116,7 +116,7 @@ func main() {
 	registrationRoutes := routes.NewRegistrationAPI(registrationStream, &registry)
 	messageRoutes := routes.NewDeviceMessagesAPI(&registry)
 	feedbackRoutes := routes.NewFeedbackAPI(&registry)
-	tokenRoutes := routes.NewTokensAPI(&registry)
+	tokenRoutes := routes.NewTokensAPI(&registry, &registry)
 
 	routes := net.RouteList{
 		net.RouteConfig{"GET", defs.SystemRoute}: routes.System,
@@ -127,7 +127,7 @@ func main() {
 		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.Create,
 		net.RouteConfig{"GET", defs.DeviceFeedbackRoute}:  feedbackRoutes.List,
 
-		net.RouteConfig{"POST", defs.DeviceTokensRoute}: tokenRoutes.CreateToken,
+		net.RouteConfig{"POST", defs.DeviceTokensRoute}: tokenRoutes.Create,
 
 		net.RouteConfig{"POST", defs.DeviceMessagesRoute}: messageRoutes.CreateMessage,
 		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,

@@ -1,8 +1,11 @@
 package defs
 
 const (
-	// APIAuthorizationHeader is the header key used by devices to send their shared secret.
-	APIAuthorizationHeader = "x-device-auth"
+	// APIDeviceRegistrationHeader is the header key used by devices to send their shared secret when connecting.
+	APIDeviceRegistrationHeader = "x-device-auth"
+
+	// APIUserTokenHeader is the header key used by users to send a device token.
+	APIUserTokenHeader = "x-user-auth"
 
 	// APIFeedbackContentTypeHeader is the content type required for requests sent to the feedback api.
 	APIFeedbackContentTypeHeader = "application/octet-stream"

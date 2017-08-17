@@ -83,7 +83,7 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 		return net.HandlerResult{Errors: []error{e}}
 	}
 
-	encodedSecret, uuid := runtime.Header.Get(defs.APIAuthorizationHeader), uuid.NewV4()
+	encodedSecret, uuid := runtime.Header.Get(defs.APIDeviceRegistrationHeader), uuid.NewV4()
 
 	deviceKey, e := security.ParseDeviceKey(encodedSecret)
 
