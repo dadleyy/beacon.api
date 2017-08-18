@@ -32,6 +32,11 @@ func (runtime *RequestRuntime) GetQueryParam(queryParam string) string {
 	return values.Get(queryParam)
 }
 
+// HeaderValue returns value for the given header key.
+func (runtime *RequestRuntime) HeaderValue(key string) string {
+	return runtime.Header.Get(key)
+}
+
 // ContentType returns the request content type from the inbound request.
 func (runtime *RequestRuntime) ContentType() string {
 	return runtime.Header.Get("Content-Type")

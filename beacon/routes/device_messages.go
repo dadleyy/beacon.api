@@ -8,6 +8,11 @@ import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
+// NewDeviceMessagesAPI returns a new api for creating device messages.
+func NewDeviceMessagesAPI(index device.Index) *DeviceMessages {
+	return &DeviceMessages{index}
+}
+
 // DeviceMessages is the route group that handles creating device messages
 type DeviceMessages struct {
 	device.Index
@@ -28,7 +33,7 @@ func (messages *DeviceMessages) CreateMessage(runtime *net.RequestRuntime) net.H
 
 	runtime.Printf("creating device message for[%s]: %v", message.DeviceID, message)
 
-	if _, e := messages.Find(message.DeviceID); e != nil {
+	if _, e := messages.FindDevice(message.DeviceID); e != nil {
 		runtime.Printf("[WARN] unable to locate device: %s", message.DeviceID)
 		return runtime.LogicError("not-found")
 	}

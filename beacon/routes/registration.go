@@ -3,7 +3,6 @@ package routes
 import "crypto/rsa"
 import "crypto/x509"
 import "encoding/hex"
-import "github.com/garyburd/redigo/redis"
 
 import "github.com/satori/go.uuid"
 import "github.com/dadleyy/beacon.api/beacon/net"
@@ -12,15 +11,14 @@ import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/security"
 
 // NewRegistrationAPI returns a constructed registration api
-func NewRegistrationAPI(stream device.RegistrationStream, registry device.Registry, store redis.Conn) *Registration {
-	return &Registration{stream, registry, store}
+func NewRegistrationAPI(stream device.RegistrationStream, registry device.Registry) *Registration {
+	return &Registration{registry, stream}
 }
 
 // Registration route engine handles receiving http reqests, upgrading and sending along to the registation stream
 type Registration struct {
-	stream   device.RegistrationStream
-	registry device.Registry
-	store    redis.Conn
+	device.Registry
+	stream device.RegistrationStream
 }
 
 // Preregister is used to submit a new registation request for a device
@@ -40,7 +38,7 @@ func (registrations *Registration) Preregister(runtime *net.RequestRuntime) net.
 		return runtime.LogicError("bad-request")
 	}
 
-	if _, e := registrations.registry.Find(request.Name); e == nil {
+	if _, e := registrations.FindDevice(request.Name); e == nil {
 		runtime.Warnf("duplicate device name registration: %v", request)
 		return runtime.LogicError("duplicate-name")
 	}
@@ -66,7 +64,7 @@ func (registrations *Registration) Preregister(runtime *net.RequestRuntime) net.
 
 	details := device.RegistrationRequest(request)
 
-	if e := registrations.registry.Allocate(details); e != nil {
+	if e := registrations.AllocateRegistration(details); e != nil {
 		runtime.Errorf("unable to allocate registration: %s", e.Error())
 		return runtime.ServerError()
 	}
@@ -85,7 +83,7 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 		return net.HandlerResult{Errors: []error{e}}
 	}
 
-	encodedSecret, uuid := runtime.Header.Get(defs.APIAuthorizationHeader), uuid.NewV4()
+	encodedSecret, uuid := runtime.Header.Get(defs.APIDeviceRegistrationHeader), uuid.NewV4()
 
 	deviceKey, e := security.ParseDeviceKey(encodedSecret)
 
@@ -95,7 +93,7 @@ func (registrations *Registration) Register(runtime *net.RequestRuntime) net.Han
 		return net.HandlerResult{NoRender: true}
 	}
 
-	if e := registrations.registry.Fill(encodedSecret, uuid.String()); e != nil {
+	if e := registrations.FillRegistration(encodedSecret, uuid.String()); e != nil {
 		runtime.Warnf("unable to push device id into store: %s", e.Error())
 		connection.Close()
 		return net.HandlerResult{NoRender: true}

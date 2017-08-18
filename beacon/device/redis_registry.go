@@ -2,6 +2,8 @@ package device
 
 import "fmt"
 import "bytes"
+import "crypto/rand"
+import "encoding/hex"
 import "github.com/satori/go.uuid"
 import "github.com/garyburd/redigo/redis"
 import "github.com/golang/protobuf/proto"
@@ -18,7 +20,7 @@ type RedisRegistry struct {
 
 // ListFeedback retrieves the latest feedback for a given device id.
 func (registry *RedisRegistry) ListFeedback(id string, count int) ([]interchange.FeedbackMessage, error) {
-	details, e := registry.Find(id)
+	details, e := registry.FindDevice(id)
 
 	if e != nil {
 		return nil, e
@@ -60,7 +62,7 @@ func (registry *RedisRegistry) LogFeedback(message interchange.FeedbackMessage) 
 		return fmt.Errorf("invalid feedback authentication")
 	}
 
-	details, e := registry.Find(auth.DeviceID)
+	details, e := registry.FindDevice(auth.DeviceID)
 
 	if e != nil {
 		return e
@@ -96,24 +98,24 @@ func (registry *RedisRegistry) LogFeedback(message interchange.FeedbackMessage) 
 	return nil
 }
 
-// Allocate reserves a spot in the registry to be filled later
-func (registry *RedisRegistry) Allocate(details RegistrationRequest) error {
+// AllocateRegistration reserves a spot in the registry to be filled later
+func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest) error {
 	allocationID := uuid.NewV4().String()
 	registryKey := registry.genAllocationKey(allocationID)
 
-	if _, e := registry.Do("HSET", registryKey, defs.RedisRegistrationNameField, details.Name); e != nil {
+	if e := registry.hset(registryKey, defs.RedisRegistrationNameField, details.Name); e != nil {
 		return e
 	}
 
-	if _, e := registry.Do("HSET", registryKey, defs.RedisRegistrationSecretField, details.SharedSecret); e != nil {
+	if e := registry.hset(registryKey, defs.RedisRegistrationSecretField, details.SharedSecret); e != nil {
 		return e
 	}
 
 	return nil
 }
 
-// Find searches the registry based on a query string for the first matching device id
-func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
+// FindDevice searches the registry based on a query string for the first matching device id
+func (registry *RedisRegistry) FindDevice(query string) (RegistrationDetails, error) {
 	if registryKey := registry.genRegistryKey(query); registry.fastLookup(registryKey) {
 		registry.Debugf("found device by id: %s", query)
 		return registry.loadDetails(registryKey)
@@ -149,8 +151,8 @@ func (registry *RedisRegistry) Find(query string) (RegistrationDetails, error) {
 	return RegistrationDetails{}, fmt.Errorf("not-found")
 }
 
-// Fill searches the pending registrations and adds the new uuid to the index
-func (registry *RedisRegistry) Fill(secret, uuid string) error {
+// FillRegistration searches the pending registrations and adds the new uuid to the index
+func (registry *RedisRegistry) FillRegistration(secret, uuid string) error {
 	response, e := registry.Do("KEYS", fmt.Sprintf("%s*", defs.RedisRegistrationRequestListKey))
 
 	if e != nil {
@@ -185,8 +187,37 @@ func (registry *RedisRegistry) Fill(secret, uuid string) error {
 	return fmt.Errorf("not-found")
 }
 
-// List prints out a list of all the registered devices
-func (registry *RedisRegistry) List() ([]RegistrationDetails, error) {
+// FindToken searches the token store for the token details given the token key.
+func (registry *RedisRegistry) FindToken(token string) (TokenDetails, error) {
+	return TokenDetails{}, fmt.Errorf("not-implemented")
+}
+
+// CreateToken creates a new auth token for a given device id
+func (registry *RedisRegistry) CreateToken(deviceID, tokenName string) (TokenDetails, error) {
+	listKey, keyBytes := registry.genTokenListKey(deviceID), make([]byte, defs.SecurityUserDeviceTokenSize)
+	empty := TokenDetails{}
+
+	if _, e := rand.Read(keyBytes); e != nil {
+		return empty, e
+	}
+
+	rawToken := hex.EncodeToString(keyBytes)
+
+	if _, e := registry.Do("LPUSH", listKey, rawToken); e != nil {
+		return empty, e
+	}
+
+	registryKey := registry.genTokenRegistrationKey(rawToken)
+
+	if e := registry.hset(registryKey, defs.RedisDeviceTokenNameField, tokenName); e != nil {
+		return empty, e
+	}
+
+	return TokenDetails{deviceID, rawToken, tokenName}, nil
+}
+
+// ListRegistrations prints out a list of all the registered devices
+func (registry *RedisRegistry) ListRegistrations() ([]RegistrationDetails, error) {
 	response, e := registry.Do("LRANGE", defs.RedisDeviceIndexKey, 0, -1)
 	var results []RegistrationDetails
 
@@ -213,13 +244,15 @@ func (registry *RedisRegistry) List() ([]RegistrationDetails, error) {
 	return results, nil
 }
 
-// Remove executes the LREM command to the redis connection
-func (registry *RedisRegistry) Remove(id string) error {
-	if _, e := registry.Do("DEL", registry.genRegistryKey(id)); e != nil {
+// RemoveDevice executes the LREM command to the redis connection
+func (registry *RedisRegistry) RemoveDevice(id string) error {
+	regKey, feedKey := registry.genRegistryKey(id), registry.genFeedbackKey(id)
+
+	if e := registry.del(regKey); e != nil {
 		return e
 	}
 
-	if _, e := registry.Do("DEL", registry.genFeedbackKey(id)); e != nil {
+	if e := registry.del(feedKey); e != nil {
 		return e
 	}
 
@@ -229,7 +262,19 @@ func (registry *RedisRegistry) Remove(id string) error {
 		registry.Infof("successfully cleaned %s from registry", id)
 	}
 
-	return e
+	tokensListKey := registry.genTokenListKey(id)
+
+	tokens, e := registry.lrangestr(tokensListKey, 0, -1)
+
+	if e != nil {
+		return e
+	}
+
+	for _, t := range tokens {
+		registry.del(registry.genTokenRegistrationKey(t))
+	}
+
+	return registry.del(tokensListKey)
 }
 
 // Insert executes the LPUSH command to the redis connection
@@ -309,12 +354,20 @@ func (registry *RedisRegistry) genAllocationKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisRegistrationRequestListKey, id)
 }
 
+func (registry *RedisRegistry) genTokenRegistrationKey(token string) string {
+	return fmt.Sprintf("%s:%s", defs.RedisDeviceTokenRegistrationKey, token)
+}
+
 func (registry *RedisRegistry) genRegistryKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisDeviceRegistryKey, id)
 }
 
 func (registry *RedisRegistry) genFeedbackKey(id string) string {
 	return fmt.Sprintf("%s:%s", defs.RedisDeviceFeedbackKey, id)
+}
+
+func (registry *RedisRegistry) genTokenListKey(id string) string {
+	return fmt.Sprintf("%s:%s", defs.RedisDeviceTokenListKey, id)
 }
 
 // hmgetstr is a wrapper around the redis HMGET command where all fields are expected to be strings
@@ -346,6 +399,12 @@ func (registry *RedisRegistry) hmgetstr(key string, fields ...string) ([]string,
 	return list, nil
 }
 
+// del is a wrapper around DEL that casts to a string
+func (registry *RedisRegistry) del(key string) error {
+	_, e := registry.Do("DEL", key)
+	return e
+}
+
 // llen is a wrapper around HGET that casts to a string
 func (registry *RedisRegistry) llen(key string) (int, error) {
 	response, e := registry.Do("LLEN", key)
@@ -366,6 +425,12 @@ func (registry *RedisRegistry) lrangestr(key string, start, end int) ([]string, 
 	}
 
 	return redis.Strings(response, e)
+}
+
+// hset is a wrapper around hset
+func (registry *RedisRegistry) hset(key, field, value string) error {
+	_, e := registry.Do("HSET", key, field, value)
+	return e
 }
 
 // hgetstr is a wrapper around HGET that casts to a string

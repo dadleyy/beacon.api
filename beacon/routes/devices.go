@@ -27,7 +27,7 @@ type Devices struct {
 
 // List will return a list of the UUIDs registered in the registry
 func (devices *Devices) List(runtime *net.RequestRuntime) net.HandlerResult {
-	ids, e := devices.Registry.List()
+	ids, e := devices.ListRegistrations()
 
 	if e != nil {
 		runtime.Printf("unable to lookup device id list: %s", e.Error())
@@ -40,7 +40,7 @@ func (devices *Devices) List(runtime *net.RequestRuntime) net.HandlerResult {
 // UpdateShorthand accepts a device id and a color (via url params from the req) and updates the device to that color.
 func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.HandlerResult {
 	query, color := runtime.Get("uuid"), runtime.Get("color")
-	details, e := devices.Find(query)
+	details, e := devices.FindDevice(query)
 
 	if e != nil {
 		runtime.Printf("shorthand update w/ invalid device id: %s (%s)", query, e.Error())

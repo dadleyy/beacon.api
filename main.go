@@ -22,6 +22,7 @@ import "github.com/dadleyy/beacon.api/beacon/routes"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/logging"
 import "github.com/dadleyy/beacon.api/beacon/security"
+import "github.com/dadleyy/beacon.api/beacon/version"
 
 func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Server) {
 	<-system
@@ -112,9 +113,10 @@ func main() {
 	processors := []bg.Processor{control, feedback}
 
 	deviceRoutes := routes.NewDevicesAPI(&registry)
-	registrationRoutes := routes.NewRegistrationAPI(registrationStream, &registry, redisConnection)
-	messageRoutes := routes.DeviceMessages{&registry}
-	feedbackRoutes := routes.Feedback{&registry}
+	registrationRoutes := routes.NewRegistrationAPI(registrationStream, &registry)
+	messageRoutes := routes.NewDeviceMessagesAPI(&registry)
+	feedbackRoutes := routes.NewFeedbackAPI(&registry)
+	tokenRoutes := routes.NewTokensAPI(&registry, &registry)
 
 	routes := net.RouteList{
 		net.RouteConfig{"GET", defs.SystemRoute}: routes.System,
@@ -124,6 +126,8 @@ func main() {
 
 		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.Create,
 		net.RouteConfig{"GET", defs.DeviceFeedbackRoute}:  feedbackRoutes.List,
+
+		net.RouteConfig{"POST", defs.DeviceTokensRoute}: tokenRoutes.Create,
 
 		net.RouteConfig{"POST", defs.DeviceMessagesRoute}: messageRoutes.CreateMessage,
 		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,
@@ -137,7 +141,7 @@ func main() {
 		RouteList:          routes,
 		BackgroundChannels: backgroundChannels,
 		RedisConnection:    redisConnection,
-		ApplicationVersion: os.Getenv("API_VERSION"),
+		ApplicationVersion: version.Semver,
 	}
 
 	wg, signalChan, killers := sync.WaitGroup{}, make(chan os.Signal, 1), make([]bg.KillSwitch, 0)
@@ -155,7 +159,7 @@ func main() {
 
 	go systemWatch(signalChan, killers, &server)
 
-	logger.Debugf("starting server on: %s\n", serverAddress)
+	logger.Infof("server (version %s) starting, binding on: %s\n", version.Semver, serverAddress)
 
 	if e := server.ListenAndServe(); e != nil {
 		logger.Debugf("server shutdown: %s", e.Error())

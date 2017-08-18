@@ -8,7 +8,7 @@ import "github.com/dadleyy/beacon.api/beacon/logging"
 
 // NewDeviceFeedbackProcessor is responsible for receiving from the device feedback stream
 func NewDeviceFeedbackProcessor(feedback ReadStream) *DeviceFeedbackProcessor {
-	logger := logging.New(defs.DeviceFeedbackLogPrefix, logging.White)
+	logger := logging.New(defs.DeviceFeedbackLogPrefix, logging.Cyan)
 	return &DeviceFeedbackProcessor{logger, feedback}
 }
 
