@@ -13,3 +13,5 @@ import:
   - proto
 - package: github.com/ttacon/chalk
   version: ^0.1.0
+- package: github.com/rafaeljusto/redigomock
+  version: ^2.1.0

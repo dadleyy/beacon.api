@@ -19,6 +19,49 @@ type RedisRegistry struct {
 	redis.Conn
 }
 
+// FindDevice searches the registry based on a query string for the first matching device id
+func (registry *RedisRegistry) FindDevice(query string) (RegistrationDetails, error) {
+	registryKey := registry.genRegistryKey(query)
+
+	exists, e := registry.exists(registryKey)
+
+	if e != nil {
+		return RegistrationDetails{}, e
+	}
+
+	if exists {
+		return registry.loadDetails(registryKey)
+	}
+
+	response, e := registry.Do("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey))
+
+	if e != nil {
+		return RegistrationDetails{}, e
+	}
+
+	registryKeys, e := redis.Strings(response, e)
+
+	if e != nil {
+		return RegistrationDetails{}, e
+	}
+
+	for _, k := range registryKeys {
+		fields, e := registry.hmgetstr(k, defs.RedisDeviceNameField, defs.RedisDeviceIDField, defs.RedisDeviceSecretField)
+
+		if e != nil {
+			return RegistrationDetails{}, e
+		}
+
+		if fields[0] == query || fields[1] == query {
+			d := RegistrationDetails{SharedSecret: fields[2], DeviceID: fields[1], Name: fields[0]}
+			return d, nil
+		}
+	}
+
+	registry.Warnf("did not find matching device: %s", query)
+	return RegistrationDetails{}, fmt.Errorf("not-found")
+}
+
 // ListFeedback retrieves the latest feedback for a given device id.
 func (registry *RedisRegistry) ListFeedback(id string, count int) ([]interchange.FeedbackMessage, error) {
 	details, e := registry.FindDevice(id)
@@ -113,41 +156,6 @@ func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest)
 	}
 
 	return nil
-}
-
-// FindDevice searches the registry based on a query string for the first matching device id
-func (registry *RedisRegistry) FindDevice(query string) (RegistrationDetails, error) {
-	if registryKey := registry.genRegistryKey(query); registry.fastLookup(registryKey) {
-		return registry.loadDetails(registryKey)
-	}
-
-	response, e := registry.Do("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey))
-
-	if e != nil {
-		return RegistrationDetails{}, e
-	}
-
-	registryKeys, e := redis.Strings(response, e)
-
-	if e != nil {
-		return RegistrationDetails{}, e
-	}
-
-	for _, k := range registryKeys {
-		fields, e := registry.hmgetstr(k, defs.RedisDeviceNameField, defs.RedisDeviceIDField, defs.RedisDeviceSecretField)
-
-		if e != nil {
-			return RegistrationDetails{}, e
-		}
-
-		if fields[0] == query || fields[1] == query {
-			d := RegistrationDetails{SharedSecret: fields[2], DeviceID: fields[1], Name: fields[0]}
-			return d, nil
-		}
-	}
-
-	registry.Warnf("did not find matching device: %s", query)
-	return RegistrationDetails{}, fmt.Errorf("not-found")
 }
 
 // FillRegistration searches the pending registrations and adds the new uuid to the index
@@ -360,20 +368,15 @@ func (registry *RedisRegistry) Insert(id string) error {
 	return e
 }
 
-// fastLookup extracts the full list of device keys and searches for the target id
-func (registry *RedisRegistry) fastLookup(registryKey string) bool {
-	keys, e := registry.deviceFieldKeys(registryKey)
-	return e == nil && len(keys) >= 1
-}
-
-func (registry *RedisRegistry) deviceFieldKeys(registryKey string) ([]string, error) {
-	response, e := registry.Do("HKEYS", registryKey)
+// exists extracts the full list of device keys and searches for the target id
+func (registry *RedisRegistry) exists(key string) (bool, error) {
+	response, e := registry.Do("EXISTS", key)
 
 	if e != nil {
-		return nil, e
+		return false, e
 	}
 
-	return redis.Strings(response, e)
+	return redis.Bool(response, e)
 }
 
 // loadDetails returns the device registration details based on a provided device key
