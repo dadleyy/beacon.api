@@ -25,8 +25,17 @@ const (
 	// RedisDeviceTokenRegistrationKey field for device token information (name)
 	RedisDeviceTokenRegistrationKey = "device:token"
 
-	// RedisDeviceTokenNameField is the field that contains the unique name of the devicetoken
+	// RedisDeviceTokenNameField is the field that contains the unique name of the token
 	RedisDeviceTokenNameField = "device-token:name"
+
+	// RedisDeviceTokenDeviceIDField stores the token's device id
+	RedisDeviceTokenDeviceIDField = "device-token:device-id"
+
+	// RedisDeviceTokenIDField stores the unique id of the token
+	RedisDeviceTokenIDField = "device-token:uuid"
+
+	// RedisDeviceTokenPermissionField is the field that contains the permission of the token
+	RedisDeviceTokenPermissionField = "device-token:permission"
 
 	// RedisDeviceSecretField is the field that contains the unique secret of the device
 	RedisDeviceSecretField = "device:secret"

@@ -63,6 +63,12 @@ func main() {
 		return
 	}
 
+	logger.Debugf("permissions: (admin: %b) (controller %b) (viewer: %b)",
+		defs.SecurityDeviceTokenPermissionAdmin,
+		defs.SecurityDeviceTokenPermissionController,
+		defs.SecurityDeviceTokenPermissionViewer,
+	)
+
 	redisConnection, e := redis.DialURL(options.redisURL)
 
 	if e != nil {

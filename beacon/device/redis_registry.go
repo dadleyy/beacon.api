@@ -2,6 +2,7 @@ package device
 
 import "fmt"
 import "bytes"
+import "strconv"
 import "crypto/rand"
 import "encoding/hex"
 import "github.com/satori/go.uuid"
@@ -189,13 +190,74 @@ func (registry *RedisRegistry) FillRegistration(secret, uuid string) error {
 
 // FindToken searches the token store for the token details given the token key.
 func (registry *RedisRegistry) FindToken(token string) (TokenDetails, error) {
-	return TokenDetails{}, fmt.Errorf("not-implemented")
+	// Start w/ an attempt to look up by key directly>
+	registryKey := registry.genTokenRegistrationKey(token)
+
+	permissionMask, e := registry.hgetstr(registryKey, defs.RedisDeviceTokenPermissionField)
+
+	if e != nil {
+		registry.Errorf("unable to find token by registry key %s (token: %s)", registryKey, token)
+		return TokenDetails{}, e
+	}
+
+	permission, e := strconv.ParseUint(permissionMask, 2, 32)
+
+	if e != nil {
+		registry.Errorf("invalid token permission mask %s (token: %s)", registryKey, token)
+		return TokenDetails{}, e
+	}
+
+	fields := struct {
+		id     string
+		name   string
+		device string
+	}{defs.RedisDeviceTokenIDField, defs.RedisDeviceTokenNameField, defs.RedisDeviceTokenDeviceIDField}
+
+	r, e := registry.hmgetstr(registryKey, fields.id, fields.name, fields.device)
+
+	if e != nil {
+		registry.Errorf("unable to find token details by registry key %s (token: %s)", registryKey, token)
+		return TokenDetails{}, e
+	}
+
+	details := TokenDetails{
+		Permission: uint(permission),
+		TokenID:    r[0],
+		Name:       r[1],
+		DeviceID:   r[2],
+	}
+
+	return details, nil
+}
+
+// AuthorizeToken approves the token + permission for the given device id
+func (registry *RedisRegistry) AuthorizeToken(deviceID, token string, permission uint) bool {
+	registration, e := registry.FindDevice(deviceID)
+
+	if e != nil {
+		return false
+	}
+
+	if token == registration.SharedSecret {
+		return true
+	}
+
+	requester, e := registry.FindToken(token)
+
+	if e != nil {
+		registry.Errorf("unable to find token: %s", e.Error())
+		return false
+	}
+
+	registry.Infof("auth token: %s (token: %b, requested: %b)", requester.TokenID, requester.Permission, permission)
+
+	return requester.Permission&permission != 0
 }
 
 // CreateToken creates a new auth token for a given device id
-func (registry *RedisRegistry) CreateToken(deviceID, tokenName string) (TokenDetails, error) {
+func (registry *RedisRegistry) CreateToken(deviceID, tokenName string, permission uint) (TokenDetails, error) {
 	listKey, keyBytes := registry.genTokenListKey(deviceID), make([]byte, defs.SecurityUserDeviceTokenSize)
-	empty := TokenDetails{}
+	empty, permissionMask, tokenID := TokenDetails{}, fmt.Sprintf("%b", permission), uuid.NewV4().String()
 
 	if _, e := rand.Read(keyBytes); e != nil {
 		return empty, e
@@ -213,7 +275,19 @@ func (registry *RedisRegistry) CreateToken(deviceID, tokenName string) (TokenDet
 		return empty, e
 	}
 
-	return TokenDetails{deviceID, rawToken, tokenName}, nil
+	if e := registry.hset(registryKey, defs.RedisDeviceTokenPermissionField, permissionMask); e != nil {
+		return empty, e
+	}
+
+	if e := registry.hset(registryKey, defs.RedisDeviceTokenIDField, tokenID); e != nil {
+		return empty, e
+	}
+
+	if e := registry.hset(registryKey, defs.RedisDeviceTokenDeviceIDField, deviceID); e != nil {
+		return empty, e
+	}
+
+	return TokenDetails{tokenID, deviceID, rawToken, tokenName, permission}, nil
 }
 
 // ListRegistrations prints out a list of all the registered devices
