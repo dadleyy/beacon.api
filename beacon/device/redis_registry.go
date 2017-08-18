@@ -118,7 +118,6 @@ func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest)
 // FindDevice searches the registry based on a query string for the first matching device id
 func (registry *RedisRegistry) FindDevice(query string) (RegistrationDetails, error) {
 	if registryKey := registry.genRegistryKey(query); registry.fastLookup(registryKey) {
-		registry.Debugf("found device by id: %s", query)
 		return registry.loadDetails(registryKey)
 	}
 
@@ -143,7 +142,6 @@ func (registry *RedisRegistry) FindDevice(query string) (RegistrationDetails, er
 
 		if fields[0] == query || fields[1] == query {
 			d := RegistrationDetails{SharedSecret: fields[2], DeviceID: fields[1], Name: fields[0]}
-			registry.Debugf("found device by query: %s", query)
 			return d, nil
 		}
 	}

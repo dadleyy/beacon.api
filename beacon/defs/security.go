@@ -22,6 +22,6 @@ const (
 const (
 	// SecurityDeviceTokenPermissionAll is all permissions
 	SecurityDeviceTokenPermissionAll = SecurityDeviceTokenPermissionAdmin |
-		SecurityDeviceTokenPermissionAdmin |
+		SecurityDeviceTokenPermissionController |
 		SecurityDeviceTokenPermissionViewer
 )

@@ -35,6 +35,7 @@ func (tokens *Tokens) Create(runtime *net.RequestRuntime) net.HandlerResult {
 	}
 
 	if request.Permission&defs.SecurityDeviceTokenPermissionAll == 0 {
+		tokens.Infof("no permission found - defaulting to viewer")
 		request.Permission = defs.SecurityDeviceTokenPermissionViewer
 	}
 
@@ -56,6 +57,7 @@ func (tokens *Tokens) Create(runtime *net.RequestRuntime) net.HandlerResult {
 		return runtime.LogicError("invalid-token")
 	}
 
+	// Attempt to authorize the provided token against the admin permission.
 	if tokens.AuthorizeToken(registration.DeviceID, token, defs.SecurityDeviceTokenPermissionAdmin) != true {
 		tokens.Warnf("unauthorized attempt to create token (token: %s, device: %s)", token, registration.DeviceID)
 		return runtime.LogicError("invalid-token")
