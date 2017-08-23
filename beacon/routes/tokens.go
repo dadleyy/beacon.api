@@ -25,8 +25,8 @@ type Tokens struct {
 	device.Index
 }
 
-// Create authenticates the incoming request and attempts to allocate a new auth token.
-func (tokens *Tokens) Create(runtime *net.RequestRuntime) net.HandlerResult {
+// CreateToken authenticates the incoming request and attempts to allocate a new auth token.
+func (tokens *Tokens) CreateToken(runtime *net.RequestRuntime) net.HandlerResult {
 	request := tokenRequest{}
 
 	if e := runtime.ReadBody(&request); e != nil {
@@ -68,7 +68,7 @@ func (tokens *Tokens) Create(runtime *net.RequestRuntime) net.HandlerResult {
 }
 
 func (tokens *Tokens) create(deviceID, name string, permission uint) net.HandlerResult {
-	token, e := tokens.CreateToken(deviceID, name, permission)
+	token, e := tokens.TokenStore.CreateToken(deviceID, name, permission)
 
 	if e != nil {
 		tokens.Warnf("unable to create token: %s (got %v)", e.Error(), token)

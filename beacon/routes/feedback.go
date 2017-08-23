@@ -25,8 +25,8 @@ type reportEntry struct {
 	Blue  uint32 `json:"blue"`
 }
 
-// List validates a payload from the client and adds an entry to the device feedback log.
-func (feedback *Feedback) List(runtime *net.RequestRuntime) net.HandlerResult {
+// ListFeedback validates a payload from the client and adds an entry to the device feedback log.
+func (feedback *Feedback) ListFeedback(runtime *net.RequestRuntime) net.HandlerResult {
 	count, e := strconv.Atoi(runtime.GetQueryParam("count"))
 
 	if e != nil || count >= 1 != true || count >= 100 {
@@ -34,7 +34,7 @@ func (feedback *Feedback) List(runtime *net.RequestRuntime) net.HandlerResult {
 		runtime.Debugf("defaulting feedback count to 1")
 	}
 
-	entries, e := feedback.ListFeedback(runtime.GetQueryParam("device_id"), count-1)
+	entries, e := feedback.FeedbackStore.ListFeedback(runtime.GetQueryParam("device_id"), count-1)
 
 	if e != nil {
 		runtime.Warnf("unable to load device feedback: %s", e.Error())
@@ -71,8 +71,8 @@ func (feedback *Feedback) List(runtime *net.RequestRuntime) net.HandlerResult {
 	return net.HandlerResult{Results: results}
 }
 
-// Create validates a payload from the client and adds an entry to the device feedback log.
-func (feedback *Feedback) Create(runtime *net.RequestRuntime) net.HandlerResult {
+// CreateFeedback validates a payload from the client and adds an entry to the device feedback log.
+func (feedback *Feedback) CreateFeedback(runtime *net.RequestRuntime) net.HandlerResult {
 	buf, e := ioutil.ReadAll(runtime.Body)
 
 	if e != nil {

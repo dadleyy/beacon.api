@@ -2,5 +2,5 @@ package routes
 
 import "testing"
 
-func Test_Create(suite *testing.T) {
+func Test_TokensAPI_CreateToken(suite *testing.T) {
 }
