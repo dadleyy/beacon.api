@@ -1,4 +1,6 @@
-package: github.com/dadleyy/pylite.api
+package: github.com/dadleyy/beacon.api
+license: MIT
+description: JSON api for beacon blink(1) api
 import:
 - package: github.com/gorilla/websocket
   version: ^1.1.0
