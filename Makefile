@@ -23,6 +23,9 @@ INTERCHANGE_DIR=$(SRC_DIR)/interchange
 INTERCHANGE_SRC=$(wildcard $(INTERCHANGE_DIR)/*.proto)
 INTERCHANGE_OBJ=$(patsubst %.proto,%.pb.go,$(INTERCHANGE_SRC))
 
+TEST_EXCLUSIONS='vendor\|interchange\|version\|defs'
+TEST_DIRS=$(shell go list $(SRC_DIR)/... | grep -vi "$(TEST_EXCLUSIONS)")
+
 all: $(EXE)
 
 $(EXE): $(VENDOR_DIR) $(INTERCHANGE_OBJ) $(GO_SRC) $(LINT_RESULT)
@@ -36,8 +39,9 @@ $(LINT_RESULT): $(GO_SRC)
 	touch $(LINT_RESULT)
 
 test: $(GO_SRC)
-	$(GO) vet $(shell go list ./... | grep -vi 'vendor\|testing')
-	$(GO) test -v -p=1 -covermode=atomic ./beacon/...
+	$(GO) vet $(SRC_DIR)/...
+	$(GO) vet $(MAIN)
+	$(GO) test -v -p=1 -covermode=atomic $(TEST_DIRS)
 
 $(VENDOR_DIR):
 	go get -u github.com/Masterminds/glide
