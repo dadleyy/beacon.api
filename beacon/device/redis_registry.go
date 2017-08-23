@@ -147,6 +147,10 @@ func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest)
 	allocationID := uuid.NewV4().String()
 	registryKey := registry.genAllocationKey(allocationID)
 
+	if len(details.Name) < 4 || len(details.SharedSecret) < 10 {
+		return fmt.Errorf("invalid-registration")
+	}
+
 	if e := registry.hset(registryKey, defs.RedisRegistrationNameField, details.Name); e != nil {
 		return e
 	}

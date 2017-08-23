@@ -8,16 +8,17 @@ import "github.com/rafaeljusto/redigomock"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/logging"
 
-func Test_FindDevice(describe *testing.T) {
+func subject() (RedisRegistry, *redigomock.Conn) {
 	out := bytes.NewBuffer([]byte{})
 	logger := log.New(out, "", 0)
 	logger.SetFlags(0)
 	mock := redigomock.NewConn()
 
-	r := RedisRegistry{
-		Logger: &logging.Logger{logger},
-		Conn:   mock,
-	}
+	return RedisRegistry{&logging.Logger{logger}, mock}, mock
+}
+
+func Test_FindDevice(describe *testing.T) {
+	r, mock := subject()
 
 	describe.Run("with no devices in the store", func(it *testing.T) {
 		defer mock.Clear()
@@ -102,4 +103,45 @@ func Test_FindDevice(describe *testing.T) {
 			}
 		})
 	})
+}
+
+func Test_AllocateRegistration(describe *testing.T) {
+	r, mock := subject()
+
+	describe.Run("when unable to generate a key", func(it *testing.T) {
+		defer mock.Clear()
+		e := r.AllocateRegistration(RegistrationRequest{})
+		if e == nil {
+			it.Fatalf("expected error w/o ability to set values but received nil")
+		}
+	})
+
+	describe.Run("with an invalid registration config", func(it *testing.T) {
+		defer mock.Clear()
+		deviceName, deviceSecret := "another-device", "9876"
+		e := r.AllocateRegistration(RegistrationRequest{
+			Name:         deviceName,
+			SharedSecret: deviceSecret,
+		})
+
+		if e == nil {
+			it.Fatalf("expected error but received nil")
+		}
+	})
+
+	describe.Run("with a valid registration config", func(it *testing.T) {
+		defer mock.Clear()
+		deviceName, deviceSecret := "another-device", "iiiiiiiiiiiiiiiiiiii"
+		mock.Command("HSET")
+
+		e := r.AllocateRegistration(RegistrationRequest{
+			Name:         deviceName,
+			SharedSecret: deviceSecret,
+		})
+
+		if e != nil {
+			it.Fatalf("expected no error but received: %v", e)
+		}
+	})
+
 }
