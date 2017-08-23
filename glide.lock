@@ -1,5 +1,5 @@
-hash: 9b80da81ecaeace3da7ae6ea2d330cad31ad4b94f7f223c010e5688d3f3c5747
-updated: 2017-06-30T10:35:21.807801678-04:00
+hash: 81c3864d9110cdb9095034bed17e0d81b5467c6d1f53a3b5554d734e9d72864d
+updated: 2017-08-23T00:39:50.221667252-04:00
 imports:
 - name: github.com/garyburd/redigo
   version: 433969511232c397de61b1442f9fd49ec06ae9ba
@@ -14,6 +14,8 @@ imports:
   version: ea4d1f681babbce9545c9c5f3d5194a789c89f5b
 - name: github.com/joho/godotenv
   version: 726cc8b906e3d31c70a9671c90a13716a8d3f50d
+- name: github.com/rafaeljusto/redigomock
+  version: 7ae0511314e9946bb0c87d6d485169ab2467a290
 - name: github.com/satori/go.uuid
   version: 879c5887cd475cd7864858769793b2ceb0d44feb
 - name: github.com/ttacon/chalk

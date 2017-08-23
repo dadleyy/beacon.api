@@ -13,8 +13,9 @@ func NewTokensAPI(store device.TokenStore, index device.Index) *Tokens {
 }
 
 type tokenRequest struct {
-	DeviceID string `json:"device_id"`
-	Name     string `json:"name"`
+	DeviceID   string `json:"device_id"`
+	Name       string `json:"name"`
+	Permission uint   `json:"permission"`
 }
 
 // Tokens defines the api for creating/deleting device auth tokens.
@@ -24,13 +25,18 @@ type Tokens struct {
 	device.Index
 }
 
-// Create authenticates the incoming request and attempts to allocate a new auth token.
-func (tokens *Tokens) Create(runtime *net.RequestRuntime) net.HandlerResult {
+// CreateToken authenticates the incoming request and attempts to allocate a new auth token.
+func (tokens *Tokens) CreateToken(runtime *net.RequestRuntime) net.HandlerResult {
 	request := tokenRequest{}
 
 	if e := runtime.ReadBody(&request); e != nil {
 		tokens.Warnf("received invalid request: %s", e.Error())
 		return runtime.LogicError("invalid-request")
+	}
+
+	if request.Permission&defs.SecurityDeviceTokenPermissionAll == 0 {
+		tokens.Infof("no permission found - defaulting to viewer")
+		request.Permission = defs.SecurityDeviceTokenPermissionViewer
 	}
 
 	if valid := len(request.Name) >= 5; valid != true {
@@ -51,30 +57,18 @@ func (tokens *Tokens) Create(runtime *net.RequestRuntime) net.HandlerResult {
 		return runtime.LogicError("invalid-token")
 	}
 
-	if token == registration.SharedSecret {
-		tokens.Debugf("creating device token via shared secret for device %s", registration.DeviceID)
-		return tokens.create(registration.DeviceID, request.Name)
+	// Attempt to authorize the provided token against the admin permission.
+	if tokens.AuthorizeToken(registration.DeviceID, token, defs.SecurityDeviceTokenPermissionAdmin) != true {
+		tokens.Warnf("unauthorized attempt to create token (token: %s, device: %s)", token, registration.DeviceID)
+		return runtime.LogicError("invalid-token")
 	}
 
-	details, e := tokens.FindToken(token)
-
-	if e != nil {
-		tokens.Warnf("unable to find token: %s", e.Error())
-		return runtime.LogicError("not-found")
-	}
-
-	if details.DeviceID != registration.DeviceID {
-		tokens.Warnf("token mismatch: %s", e.Error())
-		return runtime.LogicError("not-found")
-	}
-
-	tokens.Infof("creating token for device: %s", registration.DeviceID)
-
-	return net.HandlerResult{}
+	tokens.Debugf("creating device token for device %s (permission: %b)", registration.DeviceID, request.Permission)
+	return tokens.create(registration.DeviceID, request.Name, request.Permission)
 }
 
-func (tokens *Tokens) create(deviceID, name string) net.HandlerResult {
-	token, e := tokens.CreateToken(deviceID, name)
+func (tokens *Tokens) create(deviceID, name string, permission uint) net.HandlerResult {
+	token, e := tokens.TokenStore.CreateToken(deviceID, name, permission)
 
 	if e != nil {
 		tokens.Warnf("unable to create token: %s (got %v)", e.Error(), token)

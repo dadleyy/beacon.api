@@ -63,6 +63,12 @@ func main() {
 		return
 	}
 
+	logger.Debugf("permissions: (admin: %b) (controller %b) (viewer: %b)",
+		defs.SecurityDeviceTokenPermissionAdmin,
+		defs.SecurityDeviceTokenPermissionController,
+		defs.SecurityDeviceTokenPermissionViewer,
+	)
+
 	redisConnection, e := redis.DialURL(options.redisURL)
 
 	if e != nil {
@@ -112,9 +118,9 @@ func main() {
 
 	processors := []bg.Processor{control, feedback}
 
-	deviceRoutes := routes.NewDevicesAPI(&registry)
+	deviceRoutes := routes.NewDevicesAPI(&registry, &registry)
 	registrationRoutes := routes.NewRegistrationAPI(registrationStream, &registry)
-	messageRoutes := routes.NewDeviceMessagesAPI(&registry)
+	messageRoutes := routes.NewDeviceMessagesAPI(&registry, &registry)
 	feedbackRoutes := routes.NewFeedbackAPI(&registry)
 	tokenRoutes := routes.NewTokensAPI(&registry, &registry)
 
@@ -124,15 +130,15 @@ func main() {
 		net.RouteConfig{"GET", defs.DeviceRegistrationRoute}:  registrationRoutes.Register,
 		net.RouteConfig{"POST", defs.DeviceRegistrationRoute}: registrationRoutes.Preregister,
 
-		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.Create,
-		net.RouteConfig{"GET", defs.DeviceFeedbackRoute}:  feedbackRoutes.List,
+		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.CreateFeedback,
+		net.RouteConfig{"GET", defs.DeviceFeedbackRoute}:  feedbackRoutes.ListFeedback,
 
-		net.RouteConfig{"POST", defs.DeviceTokensRoute}: tokenRoutes.Create,
+		net.RouteConfig{"POST", defs.DeviceTokensRoute}: tokenRoutes.CreateToken,
 
 		net.RouteConfig{"POST", defs.DeviceMessagesRoute}: messageRoutes.CreateMessage,
-		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,
 
-		net.RouteConfig{"GET", defs.DeviceListRoute}: deviceRoutes.List,
+		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,
+		net.RouteConfig{"GET", defs.DeviceListRoute}:      deviceRoutes.ListDevices,
 	}
 
 	runtime := net.ServerRuntime{

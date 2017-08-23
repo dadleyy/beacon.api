@@ -9,28 +9,36 @@ import "github.com/golang/protobuf/proto"
 import "github.com/dadleyy/beacon.api/beacon/net"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
 var (
 	hexColorRegex = regexp.MustCompilePOSIX("[0-9a-f]{6}")
 )
 
+const (
+	controllerPermission = defs.SecurityDeviceTokenPermissionController
+)
+
 // NewDevicesAPI constructs the devices api
-func NewDevicesAPI(registry device.Registry) *Devices {
-	return &Devices{registry}
+func NewDevicesAPI(registry device.Registry, auth device.TokenStore) *Devices {
+	logger := logging.New(defs.DevicesAPILogPrefix, logging.Green)
+	return &Devices{logger, registry, auth}
 }
 
 // Devices route engine is responsible for CRUD operations on the device objects themselves.
 type Devices struct {
+	logging.LeveledLogger
 	device.Registry
+	device.TokenStore
 }
 
-// List will return a list of the UUIDs registered in the registry
-func (devices *Devices) List(runtime *net.RequestRuntime) net.HandlerResult {
+// ListDevices will return a list of the UUIDs registered in the registry
+func (devices *Devices) ListDevices(runtime *net.RequestRuntime) net.HandlerResult {
 	ids, e := devices.ListRegistrations()
 
 	if e != nil {
-		runtime.Printf("unable to lookup device id list: %s", e.Error())
+		devices.Errorf("unable to lookup device id list: %s", e.Error())
 		return runtime.ServerError()
 	}
 
@@ -43,8 +51,15 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 	details, e := devices.FindDevice(query)
 
 	if e != nil {
-		runtime.Printf("shorthand update w/ invalid device id: %s (%s)", query, e.Error())
+		devices.Warnf("shorthand update w/ invalid device id: %s (%s)", query, e.Error())
 		return runtime.LogicError("not-found")
+	}
+
+	token := runtime.HeaderValue(defs.APIUserTokenHeader)
+
+	if token == "" || devices.AuthorizeToken(details.DeviceID, token, controllerPermission) != true {
+		devices.Warnf("unauthorized attempt to control device (token: %s, device: %s)", token, details.DeviceID)
+		return runtime.LogicError("invalid-token")
 	}
 
 	frame := interchange.ControlFrame{}
@@ -63,29 +78,29 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 		buff := make([]byte, 1)
 
 		if _, e := hex.Decode(buff, []byte(r)); e != nil {
-			runtime.Printf("[warn] invalid hex received: %s", e.Error())
+			devices.Warnf("[warn] invalid hex received: %s", e.Error())
 			return runtime.LogicError("invalid-hex")
 		}
 
 		frame.Red = uint32(buff[0])
 
 		if _, e := hex.Decode(buff, []byte(g)); e != nil {
-			runtime.Printf("[warn] invalid hex received: %s", e.Error())
+			devices.Warnf("[warn] invalid hex received: %s", e.Error())
 			return runtime.LogicError("invalid-hex")
 		}
 
 		frame.Green = uint32(buff[0])
 
 		if _, e := hex.Decode(buff, []byte(b)); e != nil {
-			runtime.Printf("[warn] invalid hex received: %s", e.Error())
+			devices.Warnf("[warn] invalid hex received: %s", e.Error())
 			return runtime.LogicError("invalid-hex")
 		}
 
 		frame.Blue = uint32(buff[0])
 
-		runtime.Printf("received rgb color: rgb(%d,%d,%d)", frame.Red, frame.Green, frame.Blue)
+		devices.Debugf("received rgb color: rgb(%d,%d,%d)", frame.Red, frame.Green, frame.Blue)
 	default:
-		runtime.Printf("received tricky color: %s", color)
+		devices.Debugf("received tricky color: %s", color)
 	}
 
 	commandData, e := proto.Marshal(&interchange.ControlMessage{
@@ -104,7 +119,7 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 		Payload: commandData,
 	}
 
-	runtime.Printf("attempting to update device %s to %s", details.DeviceID, color)
+	devices.Debugf("attempting to update device %s to %s", details.DeviceID, color)
 
 	data, e := proto.Marshal(&message)
 
