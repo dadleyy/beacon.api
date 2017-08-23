@@ -147,7 +147,7 @@ func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest)
 	allocationID := uuid.NewV4().String()
 	registryKey := registry.genAllocationKey(allocationID)
 
-	if len(details.Name) < 4 || len(details.SharedSecret) < 10 {
+	if len(details.Name) < 4 || len(details.SharedSecret) < defs.SecurityMinimumDeviceSharedSecretSize {
 		return fmt.Errorf("invalid-registration")
 	}
 

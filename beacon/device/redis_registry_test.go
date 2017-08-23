@@ -116,9 +116,22 @@ func Test_AllocateRegistration(describe *testing.T) {
 		}
 	})
 
-	describe.Run("with an invalid registration config", func(it *testing.T) {
+	describe.Run("with an invalid registration config (no secret)", func(it *testing.T) {
 		defer mock.Clear()
-		deviceName, deviceSecret := "another-device", "9876"
+		deviceName, deviceSecret := "aaaaaaaaaaaaaaaaaaaa", ""
+		e := r.AllocateRegistration(RegistrationRequest{
+			Name:         deviceName,
+			SharedSecret: deviceSecret,
+		})
+
+		if e == nil {
+			it.Fatalf("expected error but received nil")
+		}
+	})
+
+	describe.Run("with an invalid registration config (no name)", func(it *testing.T) {
+		defer mock.Clear()
+		deviceName, deviceSecret := "", "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii"
 		e := r.AllocateRegistration(RegistrationRequest{
 			Name:         deviceName,
 			SharedSecret: deviceSecret,

@@ -3,6 +3,9 @@ package defs
 const (
 	// SecurityUserDeviceTokenSize is the size of user device tokens
 	SecurityUserDeviceTokenSize = 20
+
+	// SecurityMinimumDeviceSharedSecretSize is the minimum size of shared secrets
+	SecurityMinimumDeviceSharedSecretSize = 20
 )
 
 // DeviceTokenPermissions is a bitmask used to authorize device actions
