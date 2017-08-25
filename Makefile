@@ -25,6 +25,7 @@ INTERCHANGE_OBJ=$(patsubst %.proto,%.pb.go,$(INTERCHANGE_SRC))
 
 TEST_EXCLUSIONS='vendor\|interchange\|version\|defs'
 TEST_DIRS=$(shell go list $(SRC_DIR)/... | grep -vi "$(TEST_EXCLUSIONS)")
+MAX_TEST_CONCURRENCY=10
 
 all: $(EXE)
 
@@ -41,7 +42,7 @@ $(LINT_RESULT): $(GO_SRC)
 test: $(GO_SRC)
 	$(GO) vet $(SRC_DIR)/...
 	$(GO) vet $(MAIN)
-	$(GO) test -v -p=1 -covermode=atomic $(TEST_DIRS)
+	$(GO) test -v -p=$(MAX_TEST_CONCURRENCY) -covermode=atomic $(TEST_DIRS)
 
 $(VENDOR_DIR):
 	go get -u github.com/Masterminds/glide

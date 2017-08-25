@@ -125,20 +125,47 @@ func main() {
 	tokenRoutes := routes.NewTokensAPI(&registry, &registry)
 
 	routes := net.RouteList{
-		net.RouteConfig{"GET", defs.SystemRoute}: routes.System,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.SystemRoute,
+		}: routes.System,
 
-		net.RouteConfig{"GET", defs.DeviceRegistrationRoute}:  registrationRoutes.Register,
-		net.RouteConfig{"POST", defs.DeviceRegistrationRoute}: registrationRoutes.Preregister,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceRegistrationRoute,
+		}: registrationRoutes.Register,
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: defs.DeviceRegistrationRoute,
+		}: registrationRoutes.Preregister,
 
-		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.CreateFeedback,
-		net.RouteConfig{"GET", defs.DeviceFeedbackRoute}:  feedbackRoutes.ListFeedback,
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: defs.DeviceFeedbackRoute,
+		}: feedbackRoutes.CreateFeedback,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceFeedbackRoute,
+		}: feedbackRoutes.ListFeedback,
 
-		net.RouteConfig{"POST", defs.DeviceTokensRoute}: tokenRoutes.CreateToken,
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: defs.DeviceTokensRoute,
+		}: tokenRoutes.CreateToken,
 
-		net.RouteConfig{"POST", defs.DeviceMessagesRoute}: messageRoutes.CreateMessage,
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: defs.DeviceMessagesRoute,
+		}: messageRoutes.CreateMessage,
 
-		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,
-		net.RouteConfig{"GET", defs.DeviceListRoute}:      deviceRoutes.ListDevices,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceShorthandRoute,
+		}: deviceRoutes.UpdateShorthand,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceListRoute,
+		}: deviceRoutes.ListDevices,
 	}
 
 	runtime := net.ServerRuntime{

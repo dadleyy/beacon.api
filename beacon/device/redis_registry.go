@@ -151,15 +151,9 @@ func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest)
 		return fmt.Errorf("invalid-registration")
 	}
 
-	if e := registry.hset(registryKey, defs.RedisRegistrationNameField, details.Name); e != nil {
-		return e
-	}
+	nameField, secretField := defs.RedisRegistrationNameField, defs.RedisRegistrationSecretField
 
-	if e := registry.hset(registryKey, defs.RedisRegistrationSecretField, details.SharedSecret); e != nil {
-		return e
-	}
-
-	return nil
+	return registry.hmset(registryKey, nameField, details.Name, secretField, details.SharedSecret)
 }
 
 // FillRegistration searches the pending registrations and adds the new uuid to the index
@@ -504,6 +498,19 @@ func (registry *RedisRegistry) lrangestr(key string, start, end int) ([]string, 
 	}
 
 	return redis.Strings(response, e)
+}
+
+// hmset is a wrapper around hset
+func (registry *RedisRegistry) hmset(key string, pairs ...string) error {
+	args := []interface{}{key}
+
+	for _, i := range pairs {
+		args = append(args, i)
+	}
+
+	_, e := registry.Do("HMSET", args...)
+
+	return e
 }
 
 // hset is a wrapper around hset
