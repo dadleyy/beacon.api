@@ -23,9 +23,8 @@ INTERCHANGE_DIR=$(SRC_DIR)/interchange
 INTERCHANGE_SRC=$(wildcard $(INTERCHANGE_DIR)/*.proto)
 INTERCHANGE_OBJ=$(patsubst %.proto,%.pb.go,$(INTERCHANGE_SRC))
 
-TEST_EXCLUSIONS='vendor\|interchange\|version\|defs'
-TEST_DIRS=$(shell go list $(SRC_DIR)/... | grep -vi "$(TEST_EXCLUSIONS)")
 MAX_TEST_CONCURRENCY=10
+TEST_FLAGS=-covermode=atomic -coverprofile={{.Dir}}/.coverprofile -p=$(MAX_TEST_CONCURRENCY)
 
 all: $(EXE)
 
@@ -42,7 +41,7 @@ $(LINT_RESULT): $(GO_SRC)
 test: $(GO_SRC)
 	$(GO) vet $(SRC_DIR)/...
 	$(GO) vet $(MAIN)
-	$(GO) test -v -p=$(MAX_TEST_CONCURRENCY) -covermode=atomic $(TEST_DIRS)
+	$(GO) list -f '"go test ./beacon/{{.Name}} $(TEST_FLAGS)"' ./beacon/... | xargs -L 1 sh -c
 
 $(VENDOR_DIR):
 	go get -u github.com/Masterminds/glide
@@ -55,3 +54,4 @@ clean:
 	rm -rf $(VENDOR_DIR)
 	rm -rf $(EXE)
 	rm -rf $(INTERCHANGE_OBJ)
+	$(GO) list -f '"rm -f {{.Dir}}/.coverprofile"' ./beacon/... | xargs -L 1 sh -c
