@@ -59,7 +59,7 @@ func (registry *RedisRegistry) FindDevice(query string) (RegistrationDetails, er
 	}
 
 	registry.Warnf("did not find matching device: %s", query)
-	return RegistrationDetails{}, fmt.Errorf("not-found")
+	return RegistrationDetails{}, fmt.Errorf(defs.ErrNotFound)
 }
 
 // ListFeedback retrieves the latest feedback for a given device id.
@@ -148,7 +148,7 @@ func (registry *RedisRegistry) AllocateRegistration(details RegistrationRequest)
 	registryKey := registry.genAllocationKey(allocationID)
 
 	if len(details.Name) < 4 || len(details.SharedSecret) < defs.SecurityMinimumDeviceSharedSecretSize {
-		return fmt.Errorf("invalid-registration")
+		return fmt.Errorf(defs.ErrInvalidRegistrationRequest)
 	}
 
 	nameField, secretField := defs.RedisRegistrationNameField, defs.RedisRegistrationSecretField
@@ -167,7 +167,7 @@ func (registry *RedisRegistry) FillRegistration(secret, uuid string) error {
 	requestKeys, e := redis.Strings(response, e)
 
 	if e != nil {
-		return e
+		return fmt.Errorf(defs.ErrBadRedisResponse)
 	}
 
 	for _, k := range requestKeys {
@@ -189,7 +189,7 @@ func (registry *RedisRegistry) FillRegistration(secret, uuid string) error {
 		}
 	}
 
-	return fmt.Errorf("not-found")
+	return fmt.Errorf(defs.ErrNotFound)
 }
 
 // FindToken searches the token store for the token details given the token key.
@@ -255,7 +255,7 @@ func (registry *RedisRegistry) AuthorizeToken(deviceID, token string, permission
 
 	registry.Infof("auth token: %s (token: %b, requested: %b)", requester.TokenID, requester.Permission, permission)
 
-	return requester.Permission&permission != 0
+	return requester.Permission&permission == permission
 }
 
 // CreateToken creates a new auth token for a given device id

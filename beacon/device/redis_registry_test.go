@@ -3,7 +3,10 @@ package device
 import "log"
 import "fmt"
 import "bytes"
+import "strconv"
 import "testing"
+import "strings"
+import "github.com/franela/goblin"
 import "github.com/rafaeljusto/redigomock"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/logging"
@@ -11,6 +14,11 @@ import "github.com/dadleyy/beacon.api/beacon/logging"
 const (
 	permissionField = defs.RedisDeviceTokenPermissionField
 )
+
+func mask(strval string) uint {
+	v, _ := strconv.ParseUint(strval, 2, 32)
+	return uint(v)
+}
 
 func subject() (RedisRegistry, *redigomock.Conn) {
 	out := bytes.NewBuffer([]byte{})
@@ -24,377 +32,425 @@ func subject() (RedisRegistry, *redigomock.Conn) {
 	}, mock
 }
 
-func Test_RedisRegistry(suite *testing.T) {
+func Test_RedisRegistry_Goblin(t *testing.T) {
+	g := goblin.Goblin(t)
 
-	suite.Run("FindDevice", func(describe *testing.T) {
+	g.Describe("FindDevice", func() {
 		r, mock := subject()
+		device := RegistrationDetails{
+			Name:         "some-device",
+			DeviceID:     "1235",
+			SharedSecret: "shared-secret",
+		}
+		registryKey := r.genRegistryKey(device.DeviceID)
 
-		describe.Run("with no devices in the store", func(it *testing.T) {
-			defer mock.Clear()
-			if _, e := r.FindDevice("garbage"); e == nil {
-				it.Fail()
-			}
+		g.BeforeEach(mock.Clear)
+
+		g.It("returns an error with no devies in the store", func() {
+			_, e := r.FindDevice("garbage")
+			g.Assert(e != nil).Equal(true)
 		})
 
-		describe.Run("with a device in the store", func(describe *testing.T) {
-			deviceID, deviceName, deviceSecret := "123", "some-device", "9876"
-			registryKey := r.genRegistryKey(deviceID)
-
-			describe.Run("but unable to load data", func(it *testing.T) {
-				defer mock.Clear()
+		g.Describe("when successfully able to check via exists", func() {
+			g.BeforeEach(func() {
 				mock.Command("EXISTS", registryKey).Expect([]byte("true"))
-				_, e := r.FindDevice(deviceID)
-
-				if e == nil {
-					it.Fail()
-				}
 			})
 
-			describe.Run("with valid device details & searching by ID", func(it *testing.T) {
-				defer mock.Clear()
-				mock.Command("EXISTS", registryKey).Expect([]byte("true"))
-				mock.Command("HMGET", registryKey, "device:uuid", "device:name", "device:secret").ExpectSlice(
-					[]byte(deviceID),
-					[]byte(deviceName),
-					[]byte(deviceSecret),
-				)
-
-				details, e := r.FindDevice(deviceID)
-
-				if e != nil {
-					it.Fatalf("expected to find device but received: %s", e.Error())
-				}
-
-				if details.SharedSecret != deviceSecret || details.Name != deviceName {
-					it.Fatalf("expected to find device but received: %v", details)
-				}
+			g.It("still returns an error if unable to load data", func() {
+				_, e := r.FindDevice("garbage")
+				g.Assert(e != nil).Equal(true)
 			})
 
-			describe.Run("recevied an error during the loading from KEYS", func(it *testing.T) {
-				defer mock.Clear()
-				mock.Command("EXISTS", r.genRegistryKey(deviceName)).Expect([]byte("false"))
+			g.Describe("when able to load all details via HMGET", func() {
+				g.BeforeEach(func() {
+					mock.Command("HMGET", registryKey, "device:uuid", "device:name", "device:secret").ExpectSlice(
+						[]byte(device.DeviceID),
+						[]byte(device.Name),
+						[]byte(device.SharedSecret),
+					)
+				})
+
+				g.It("successfully returns the device details", func() {
+					result, e := r.FindDevice(device.DeviceID)
+
+					g.Assert(e == nil).Equal(true)
+					g.Assert(result.DeviceID).Equal(device.DeviceID)
+				})
+			})
+		})
+
+		g.Describe("when unable to find by fast id lookup", func() {
+			g.BeforeEach(func() {
+				mock.Command("EXISTS", r.genRegistryKey(device.Name)).Expect([]byte("false"))
+			})
+
+			g.It("returns an error when recevied an error during the loading from KEYS", func() {
 				mock.Command("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey)).ExpectError(fmt.Errorf("problems"))
 
-				details, e := r.FindDevice(deviceName)
+				_, e := r.FindDevice(device.Name)
 
-				if e == nil {
-					it.Fatalf("expected to be unable to load device but received: %v", details)
-				}
+				g.Assert(e != nil).Equal(true)
 			})
 
-			describe.Run("recevied an error during the parsing of strings from KEYS", func(it *testing.T) {
-				defer mock.Clear()
-				mock.Command("EXISTS", r.genRegistryKey(deviceName)).Expect([]byte("false"))
+			g.It("returns an error when recevied an error during the parsing of strings from KEYS", func() {
 				mock.Command("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey)).Expect(nil)
-
-				details, e := r.FindDevice(deviceName)
-
-				if e == nil {
-					it.Fatalf("expected to be unable to load device but received: %v", details)
-				}
+				_, e := r.FindDevice(device.Name)
+				g.Assert(e != nil).Equal(true)
 			})
 
-			describe.Run("recevied an error during the loading of keys via second HMGET", func(it *testing.T) {
-				defer mock.Clear()
-				mock.Command("EXISTS", r.genRegistryKey(deviceName)).Expect([]byte("false"))
-				mock.Command("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey)).ExpectSlice(
-					[]byte(r.genRegistryKey(deviceID)),
-				)
+			g.Describe("having received a valid list of device registrations", func() {
+				g.BeforeEach(func() {
+					list := []byte(r.genRegistryKey(device.DeviceID))
+					mock.Command("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey)).ExpectSlice(list)
+				})
 
-				mock.Command(
-					"HMGET",
-					r.genRegistryKey(deviceID), "device:name", "device:uuid", "device:secret",
-				).ExpectError(fmt.Errorf("problem"))
+				g.It("returns an error when recevied an error during the loading of keys via second HMGET", func() {
+					mock.Command(
+						"HMGET",
+						r.genRegistryKey(device.DeviceID), "device:name", "device:uuid", "device:secret",
+					).ExpectError(fmt.Errorf("problem"))
 
-				details, e := r.FindDevice(deviceName)
+					_, e := r.FindDevice(device.Name)
 
-				if e == nil {
-					it.Fatalf("expected to be unable to load device but received: %v", details)
-				}
-			})
+					g.Assert(e != nil).Equal(true)
+				})
 
-			describe.Run("recevied a mismatch during the loading from HMGET", func(it *testing.T) {
-				defer mock.Clear()
-				mock.Command("EXISTS", r.genRegistryKey(deviceName)).Expect([]byte("false"))
-				mock.Command("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey)).ExpectSlice(
-					[]byte(r.genRegistryKey(deviceID)),
-				)
-				mock.Command("HMGET", r.genRegistryKey(deviceID), "device:name", "device:uuid", "device:secret").ExpectSlice(
-					[]byte("not-the-same"),
-					[]byte("not-the-same"),
-					[]byte("not-the-same"),
-				)
+				g.It("errors when recevied a mismatch during the loading from HMGET", func() {
+					k := r.genRegistryKey(device.DeviceID)
+					cmd := mock.Command("HMGET", k, "device:name", "device:uuid", "device:secret")
+					cmd.ExpectSlice(
+						[]byte("not-the-same"),
+						[]byte("not-the-same"),
+						[]byte("not-the-same"),
+					)
 
-				details, e := r.FindDevice(deviceName)
+					_, e := r.FindDevice(device.Name)
+					g.Assert(e != nil).Equal(true)
+				})
 
-				if e == nil {
-					it.Fatalf("expected to be unable to load device but received: %v", details)
-				}
-			})
+				g.It("succeeds with valid device details & searching by name", func() {
+					k := r.genRegistryKey(device.DeviceID)
+					cmd := mock.Command("HMGET", k, "device:name", "device:uuid", "device:secret")
+					cmd.ExpectSlice(
+						[]byte(device.Name),
+						[]byte(device.DeviceID),
+						[]byte(device.SharedSecret),
+					)
 
-			describe.Run("with valid device details & searching by name", func(it *testing.T) {
-				defer mock.Clear()
-				mock.Command("EXISTS", r.genRegistryKey(deviceName)).Expect([]byte("false"))
-				mock.Command("KEYS", fmt.Sprintf("%s*", defs.RedisDeviceRegistryKey)).ExpectSlice(
-					[]byte(r.genRegistryKey(deviceID)),
-				)
-				mock.Command("HMGET", r.genRegistryKey(deviceID), "device:name", "device:uuid", "device:secret").ExpectSlice(
-					[]byte(deviceName),
-					[]byte(deviceID),
-					[]byte(deviceSecret),
-				)
+					result, e := r.FindDevice(device.Name)
 
-				details, e := r.FindDevice(deviceName)
-
-				if e != nil {
-					it.Fatalf("expected to find device but received: %s", e.Error())
-				}
-
-				if details.SharedSecret != deviceSecret || details.Name != deviceName {
-					it.Fatalf("expected to find device but received: %v", details)
-				}
+					g.Assert(e).Equal(nil)
+					g.Assert(result.Name).Equal(device.Name)
+					g.Assert(result.DeviceID).Equal(device.DeviceID)
+				})
 			})
 		})
 	})
 
-	suite.Run("AllocateRegistration", func(describe *testing.T) {
+	g.Describe("AllocateRegistration", func() {
 		r, mock := subject()
 
-		describe.Run("when unable to generate a key", func(it *testing.T) {
-			defer mock.Clear()
-			e := r.AllocateRegistration(RegistrationRequest{})
-			if e == nil {
-				it.Fatalf("expected error w/o ability to set values but received nil")
+		g.BeforeEach(mock.Clear)
+
+		g.Describe("with invalid registration details", func() {
+			registrations := []RegistrationRequest{
+				RegistrationRequest{},
+				RegistrationRequest{Name: "this is a valid name"},
+				RegistrationRequest{SharedSecret: "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii"},
+			}
+
+			for _, request := range registrations {
+				g.It("errors with an invalid registration request", func() {
+					e := r.AllocateRegistration(request)
+					g.Assert(e.Error()).Equal(defs.ErrInvalidRegistrationRequest)
+				})
 			}
 		})
 
-		describe.Run("with an invalid registration config (no secret)", func(it *testing.T) {
-			defer mock.Clear()
-			deviceName, deviceSecret := "aaaaaaaaaaaaaaaaaaaa", ""
-			e := r.AllocateRegistration(RegistrationRequest{
-				Name:         deviceName,
-				SharedSecret: deviceSecret,
+		g.Describe("with a valid registration", func() {
+			request := RegistrationRequest{
+				Name:         "a valid device name",
+				SharedSecret: "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+			}
+
+			g.It("errors when unable to set via hset", func() {
+				mock.Command("HMSET").ExpectError(fmt.Errorf("some-error"))
+				e := r.AllocateRegistration(request)
+				g.Assert(e.Error()).Equal("some-error")
 			})
 
-			if e == nil {
-				it.Fatalf("expected error but received nil")
-			}
-		})
-
-		describe.Run("with an invalid registration config (no name)", func(it *testing.T) {
-			defer mock.Clear()
-			deviceName, deviceSecret := "", "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii"
-			e := r.AllocateRegistration(RegistrationRequest{
-				Name:         deviceName,
-				SharedSecret: deviceSecret,
+			g.It("returns nil when successfully able to set via hset", func() {
+				mock.Command("HMSET").Expect(nil)
+				e := r.AllocateRegistration(request)
+				g.Assert(e).Equal(nil)
 			})
-
-			if e == nil {
-				it.Fatalf("expected error but received nil")
-			}
-		})
-
-		describe.Run("with a valid registration config", func(it *testing.T) {
-			defer mock.Clear()
-			deviceName, deviceSecret := "another-device", "iiiiiiiiiiiiiiiiiiii"
-			mock.Command("HMSET")
-
-			e := r.AllocateRegistration(RegistrationRequest{
-				Name:         deviceName,
-				SharedSecret: deviceSecret,
-			})
-
-			if e != nil {
-				it.Fatalf("expected no error but received: %v", e)
-			}
-		})
-
-		describe.Run("when receiving an error during hset", func(it *testing.T) {
-			defer mock.Clear()
-			mock.Command("HSET").ExpectError(fmt.Errorf("e"))
-			deviceName, deviceSecret := "another-device", "iiiiiiiiiiiiiiiiiiii"
-
-			e := r.AllocateRegistration(RegistrationRequest{
-				Name:         deviceName,
-				SharedSecret: deviceSecret,
-			})
-
-			if e == nil {
-				it.Fatalf("expected no error but received: %v", e)
-			}
-		})
-
-		describe.Run("when receiving an error during hset", func(it *testing.T) {
-			defer mock.Clear()
-			mock.Command("HSET").ExpectError(fmt.Errorf("e"))
-			deviceName, deviceSecret := "another-device", "iiiiiiiiiiiiiiiiiiii"
-
-			e := r.AllocateRegistration(RegistrationRequest{
-				Name:         deviceName,
-				SharedSecret: deviceSecret,
-			})
-
-			if e == nil {
-				it.Fatalf("expected no error but received: %v", e)
-			}
 		})
 	})
 
-	suite.Run("FillRegistration", func(describe *testing.T) {
+	g.Describe("FillRegistration", func() {
 		r, mock := subject()
+		g.BeforeEach(mock.Clear)
 
-		describe.Run("when received an error from the initial key lookup", func(it *testing.T) {
-			defer mock.Clear()
+		fields := struct {
+			secret string
+			name   string
+		}{defs.RedisRegistrationSecretField, defs.RedisRegistrationNameField}
+
+		registration := struct {
+			id     string
+			name   string
+			secret string
+		}{"1212121212", "some request", "31313131313131313131"}
+
+		g.It("returns error when inital keys lookup fails", func() {
+			mock.Command("KEYS").ExpectError(fmt.Errorf("bad-keys"))
 			e := r.FillRegistration("secret", "uuid")
-
-			if e == nil {
-				it.Fatalf("expected error without any device lookup possible")
-			}
+			g.Assert(e.Error()).Equal("bad-keys")
 		})
 
-		describe.Run("when received an invalid response from the initial key lookup", func(it *testing.T) {
-			defer mock.Clear()
+		g.It("returns error when inital keys lookup returns garbage", func() {
 			mock.Command("KEYS").Expect(nil)
 			e := r.FillRegistration("secret", "uuid")
-
-			if e == nil {
-				it.Fatalf("expected error without any device lookup possible")
-			}
+			g.Assert(e.Error()).Equal(defs.ErrBadRedisResponse)
 		})
 
-		describe.Run("when received no keys from the initial key lookup", func(it *testing.T) {
-			defer mock.Clear()
-			mock.Command("KEYS").ExpectSlice([]byte{})
+		g.It("returns error when inital keys lookup returns empty array", func() {
+			mock.Command("KEYS").ExpectSlice([]byte("one"))
 			e := r.FillRegistration("secret", "uuid")
-
-			if e == nil {
-				it.Fatalf("expected error without any device lookup possible")
-			}
+			g.Assert(e.Error()).Equal(defs.ErrNotFound)
 		})
 
-		describe.Run("when received some keys but fails on string conv", func(it *testing.T) {
-			defer mock.Clear()
+		g.It("returns error when received some keys but fails on string conv", func() {
 			mock.Command("KEYS").ExpectSlice([]byte("hello"))
 			mock.Command("HGET").Expect(nil)
 			e := r.FillRegistration("secret", "uuid")
-
-			if e == nil {
-				it.Fatalf("expected error without any device lookup possible")
-			}
+			g.Assert(e.Error()).Equal(defs.ErrNotFound)
 		})
 
-		describe.Run("when received some keys w/o a match from the initial key lookup", func(it *testing.T) {
-			defer mock.Clear()
-			mock.Command("KEYS").ExpectSlice([]byte("hello"))
-			mock.Command("HGET").Expect([]byte("secret"))
-			e := r.FillRegistration("secret", "uuid")
+		g.Describe("when having received a valid lookup w/ a matching secret", func() {
+			registrationKey := r.genAllocationKey(registration.id)
 
-			if e == nil {
-				it.Fatalf("expected error without any device lookup possible")
-			}
+			g.BeforeEach(func() {
+				mock.Command("KEYS").ExpectSlice([]byte(registrationKey))
+				mock.Command("HGET", registrationKey, fields.secret).Expect([]byte(registration.secret))
+			})
+
+			g.It("returns error when unable to finalize the registration", func() {
+				mock.Command("HMGET", registrationKey, fields.secret, fields.name).ExpectError(fmt.Errorf("some-error"))
+				e := r.FillRegistration(registration.secret, registration.id)
+				g.Assert(e.Error()).Equal("some-error")
+			})
+
+			g.It("returns error when unable to push into the index", func() {
+				mock.Command("HMGET", registrationKey, fields.secret, fields.name).ExpectSlice(
+					[]byte(registration.secret),
+					[]byte(registration.name),
+				)
+				mock.Command("LPUSH", defs.RedisDeviceIndexKey, registration.id).ExpectError(fmt.Errorf("some-error"))
+				e := r.FillRegistration(registration.secret, registration.id)
+				g.Assert(e.Error()).Equal("some-error")
+			})
+
+			g.Describe("having succesfully loaded + pushed to the index", func() {
+				g.BeforeEach(func() {
+					mock.Command("HMGET", registrationKey, fields.secret, fields.name).ExpectSlice(
+						[]byte(registration.secret),
+						[]byte(registration.name),
+					)
+					mock.Command("LPUSH", defs.RedisDeviceIndexKey, registration.id).Expect(nil)
+				})
+
+				g.It("errors when failed on hmset", func() {
+					mock.Command("HMSET").ExpectError(fmt.Errorf("bad-hmset"))
+					e := r.FillRegistration(registration.secret, registration.id)
+					g.Assert(e.Error()).Equal("bad-hmset")
+				})
+
+				g.It("succeeds after successful hmset", func() {
+					mock.Command("HMSET").Expect(nil)
+					e := r.FillRegistration(registration.secret, registration.id)
+					g.Assert(e).Equal(nil)
+				})
+			})
 		})
 	})
 
-	suite.Run("FindToken", func(describe *testing.T) {
+	g.Describe("FindToken", func() {
+		r, mock := subject()
+		g.BeforeEach(mock.Clear)
+
+		token := struct {
+			name     string
+			token    string
+			id       string
+			deviceID string
+		}{"testing", "eeeeeeeeeeeeeeeeeeee", "token-id-1", "device-id-1"}
+
+		tokenKey := r.genTokenRegistrationKey(token.token)
+
+		fields := struct {
+			permission string
+		}{defs.RedisDeviceTokenPermissionField}
+
+		g.It("fails fast when unable to get the permission mask", func() {
+			mock.Command("HGET", tokenKey, fields.permission).ExpectError(fmt.Errorf("bad-hget"))
+			_, e := r.FindToken(token.token)
+			g.Assert(e.Error()).Equal("bad-hget")
+		})
+
+		g.It("fails fast when unable to parse the permission mask", func() {
+			mock.Command("HGET", tokenKey, fields.permission).Expect([]byte("invalid-mask"))
+			_, e := r.FindToken(token.token)
+			g.Assert(strings.Contains(e.Error(), "invalid syntax")).Equal(true)
+		})
+
+		g.Describe("when successfully able to load token", func() {
+			g.BeforeEach(func() {
+				mock.Command("HGET", tokenKey, fields.permission).Expect([]byte("111"))
+			})
+
+			g.It("returns error when hmget lookup fails", func() {
+				mock.Command("HMGET").ExpectError(fmt.Errorf("bad-hmget"))
+				_, e := r.FindToken(token.token)
+				g.Assert(e.Error()).Equal("bad-hmget")
+			})
+
+			g.It("successfully returns token details when hmget lookup passes", func() {
+				mock.Command("HMGET").ExpectSlice(
+					[]byte(token.id),
+					[]byte(token.name),
+					[]byte(token.deviceID),
+				)
+				_, e := r.FindToken(token.token)
+				g.Assert(e).Equal(nil)
+			})
+		})
+	})
+
+	g.Describe("AuthorizeToken", func() {
 		r, mock := subject()
 
-		describe.Run("without the ability to find a token", func(it *testing.T) {
-			defer mock.Clear()
-			d, e := r.FindToken("not-there")
+		fields := struct {
+			permission string
+			deviceID   string
+			id         string
+			name       string
+		}{
+			defs.RedisDeviceTokenPermissionField,
+			defs.RedisDeviceTokenDeviceIDField,
+			defs.RedisDeviceTokenIDField,
+			defs.RedisDeviceTokenNameField,
+		}
 
-			if e == nil {
-				it.Fatalf("expected error but received: %v", d)
-			}
+		device := struct {
+			name   string
+			id     string
+			token  string
+			secret string
+		}{"test-device", "id-123", "4242424242", "421421421421421421421421"}
+
+		registryKey := r.genRegistryKey(device.id)
+
+		g.BeforeEach(mock.Clear)
+
+		g.AfterEach(func() {
+			g.Assert(mock.ExpectationsWereMet()).Equal(nil)
 		})
 
-		describe.Run("having received an invalid permission mask", func(it *testing.T) {
-			defer mock.Clear()
-			mock.Command("HGET").Expect([]byte("zzz"))
-			d, e := r.FindToken("not-there")
-
-			if e == nil {
-				it.Fatalf("expected error but received: %v", d)
-			}
+		g.It("returns false if unable to find device", func() {
+			mock.Command("EXISTS", registryKey).ExpectError(fmt.Errorf("bad-exists"))
+			b := r.AuthorizeToken(device.id, device.token, 1)
+			g.Assert(b).Equal(false)
 		})
 
-		describe.Run("with the ability to find a token", func(it *testing.T) {
-			defer mock.Clear()
+		g.Describe("having found a device via EXISTS", func() {
+			g.BeforeEach(func() {
+				mock.Command("EXISTS", registryKey).Expect([]byte("true"))
+			})
 
-			token := TokenDetails{
-				TokenID:  "123",
-				Name:     "some-token",
-				DeviceID: "321",
-			}
+			g.It("should return true if token matches device secret", func() {
+				mock.Command("HMGET", registryKey, "device:uuid", "device:name", "device:secret").ExpectSlice(
+					[]byte(device.id),
+					[]byte(device.name),
+					[]byte(device.secret),
+				)
+				b := r.AuthorizeToken(device.id, device.secret, 1)
+				g.Assert(b).Equal(true)
+			})
 
-			mock.Command("HGET").Expect([]byte("111"))
+			g.It("should not return true if unable to load in token details", func() {
+				mock.Command("HMGET", registryKey, "device:uuid", "device:name", "device:secret").ExpectSlice(
+					[]byte(device.id),
+					[]byte(device.name),
+					[]byte(device.secret),
+				)
+				mock.Command("HGET", r.genTokenRegistrationKey(device.token), fields.permission).ExpectError(fmt.Errorf(""))
+				b := r.AuthorizeToken(device.id, device.token, 1)
+				g.Assert(b).Equal(false)
+			})
 
-			mock.Command("HMGET").ExpectSlice(
-				[]byte(token.TokenID),
-				[]byte(token.Name),
-				[]byte(token.DeviceID),
-			)
+			g.Describe("with valid device + token information loaded", func() {
+				tokenKey := r.genTokenRegistrationKey(device.token)
 
-			d, e := r.FindToken("not-there")
+				g.BeforeEach(func() {
+					mock.Command("HMGET", registryKey, "device:uuid", "device:name", "device:secret").ExpectSlice(
+						[]byte(device.id),
+						[]byte(device.name),
+						[]byte(device.secret),
+					)
+					mock.Command("HMGET", tokenKey, fields.id, fields.name, fields.deviceID).ExpectSlice(
+						[]byte(device.id),
+						[]byte(device.name),
+						[]byte(device.id),
+					)
+				})
 
-			if e != nil {
-				it.Fatalf("expected no error but received: %v", e)
-			}
+				invalid := [][]string{
+					[]string{"100", "011"},
+					[]string{"100", "001"},
+					[]string{"100", "010"},
+					[]string{"100", "111"},
+					[]string{"010", "101"},
+					[]string{"010", "100"},
+					[]string{"010", "001"},
+					[]string{"010", "111"},
+					[]string{"001", "110"},
+					[]string{"001", "010"},
+					[]string{"001", "100"},
+					[]string{"001", "111"},
+				}
 
-			if d.DeviceID != token.DeviceID || d.Name != token.Name {
-				it.Fatalf("expected %v but received: %v", token, d)
-			}
+				valid := [][]string{
+					[]string{"1100", "100"},
+					[]string{"1010", "010"},
+					[]string{"1001", "001"},
+				}
+
+				for _, masks := range invalid {
+					have, want := masks[0], masks[1]
+					g.It(fmt.Sprintf("should not return true if the token mask is invalid (%s vs %s)", have, want), func() {
+						mock.Command("HGET", tokenKey, fields.permission).Expect([]byte(have))
+						b := r.AuthorizeToken(device.id, device.token, mask(want))
+						g.Assert(b).Equal(false)
+					})
+				}
+
+				for _, masks := range valid {
+					have, want := masks[0], masks[1]
+					g.It(fmt.Sprintf("should return true if the token mask is valid (%s vs %s)", have, want), func() {
+						mock.Command("HGET", tokenKey, fields.permission).Expect([]byte(have))
+						b := r.AuthorizeToken(device.id, device.token, mask(want))
+						g.Assert(b).Equal(true)
+					})
+				}
+			})
 		})
 	})
+}
 
+/*
 	suite.Run("AuthorizeToken", func(describe *testing.T) {
 		r, mock := subject()
-
-		describe.Run("without the ability to find a token", func(it *testing.T) {
-			defer mock.Clear()
-			b := r.AuthorizeToken("device-id", "token", 1)
-
-			if b != false {
-				it.Fatalf("expected invalid authorization but received successful attempt")
-			}
-		})
-
-		describe.Run("having found a valid device and given the shared secret", func(it *testing.T) {
-			defer mock.Clear()
-			deviceID, deviceName, deviceSecret := "device-id", "device-name", "device-secret"
-			registryKey := r.genRegistryKey(deviceID)
-
-			mock.Command("EXISTS", registryKey).Expect([]byte("true"))
-			mock.Command("HMGET", registryKey, "device:uuid", "device:name", "device:secret").ExpectSlice(
-				[]byte(deviceID),
-				[]byte(deviceName),
-				[]byte(deviceSecret),
-			)
-
-			b := r.AuthorizeToken("device-id", deviceSecret, 1)
-
-			if b != true {
-				it.Fatalf("expected valid authorization but received successful attempt")
-			}
-		})
-
-		describe.Run("having found a valid device and given an invalid token", func(it *testing.T) {
-			defer mock.Clear()
-			deviceID, deviceName, deviceSecret := "device-id", "device-name", "device-secret"
-			registryKey := r.genRegistryKey(deviceID)
-
-			mock.Command("EXISTS", registryKey).Expect([]byte("true"))
-			mock.Command("HMGET", registryKey, "device:uuid", "device:name", "device:secret").ExpectSlice(
-				[]byte(deviceID),
-				[]byte(deviceName),
-				[]byte(deviceSecret),
-			)
-
-			b := r.AuthorizeToken("device-id", "another-token", 1)
-
-			if b != false {
-				it.Fatalf("expected valid authorization but received successful attempt")
-			}
-		})
 
 		describe.Run("having found a valid device and given a valid token AAA", func(it *testing.T) {
 			defer mock.Clear()
@@ -437,3 +493,4 @@ func Test_RedisRegistry(suite *testing.T) {
 		})
 	})
 }
+*/
