@@ -19,7 +19,7 @@ func NewStreamerConnection(stream defs.Streamer, sign defs.Signer, id uuid.UUID)
 
 // StreamerConnection is an implementation of the device.Connection interface using a websocket
 type StreamerConnection struct {
-	*logging.Logger
+	logging.LeveledLogger
 	defs.Streamer
 	defs.Signer
 	id uuid.UUID
