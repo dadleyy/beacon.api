@@ -35,6 +35,66 @@ func subject() (RedisRegistry, *redigomock.Conn) {
 func Test_RedisRegistry(t *testing.T) {
 	g := goblin.Goblin(t)
 
+	g.Describe("ListRegistrations", func() {
+		r, mock := subject()
+		g.BeforeEach(mock.Clear)
+
+		fields := struct {
+			id     string
+			name   string
+			secret string
+		}{defs.RedisDeviceIDField, defs.RedisDeviceNameField, defs.RedisDeviceSecretField}
+
+		device := struct {
+			name   string
+			id     string
+			secret string
+		}{"device-name", "device-id", "device-secret"}
+
+		g.AfterEach(func() {
+			g.Assert(mock.ExpectationsWereMet()).Equal(nil)
+		})
+
+		g.It("returns an error if unable to perform the initial lrange", func() {
+			mock.Command("LRANGE", defs.RedisDeviceIndexKey, 0, -1).ExpectError(fmt.Errorf("bad-range"))
+			_, e := r.ListRegistrations()
+			g.Assert(e.Error()).Equal("bad-range")
+		})
+
+		g.It("returns an error if unable to parse range as strings", func() {
+			mock.Command("LRANGE", defs.RedisDeviceIndexKey, 0, -1).Expect(nil)
+			_, e := r.ListRegistrations()
+			g.Assert(e.Error()).Equal(defs.ErrBadRedisResponse)
+		})
+
+		g.Describe("having returned a registration key", func() {
+			registration := []byte("some-registration")
+			registryKey := r.genRegistryKey(string(registration))
+
+			g.BeforeEach(func() {
+				mock.Command("LRANGE", defs.RedisDeviceIndexKey, 0, -1).ExpectSlice(registration)
+			})
+
+			g.It("returns an error if unable to perform lookup on returned registrations", func() {
+				mock.Command("HMGET", registryKey, fields.id, fields.name, fields.secret).ExpectError(fmt.Errorf("bad-get"))
+				_, e := r.ListRegistrations()
+				g.Assert(e.Error()).Equal("bad-get")
+			})
+
+			g.It("returns the details of the registration if successful", func() {
+				mock.Command("HMGET", registryKey, fields.id, fields.name, fields.secret).ExpectSlice(
+					[]byte(device.id),
+					[]byte(device.name),
+					[]byte(device.secret),
+				)
+				l, e := r.ListRegistrations()
+				g.Assert(e).Equal(nil)
+				g.Assert(len(l)).Equal(1)
+				g.Assert(l[0].Name).Equal(device.name)
+			})
+		})
+	})
+
 	g.Describe("RemoveDevice", func() {
 		r, mock := subject()
 		g.BeforeEach(mock.Clear)

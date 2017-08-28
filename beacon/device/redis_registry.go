@@ -296,24 +296,19 @@ func (registry *RedisRegistry) CreateToken(deviceID, tokenName string, permissio
 
 // ListRegistrations prints out a list of all the registered devices
 func (registry *RedisRegistry) ListRegistrations() ([]RegistrationDetails, error) {
-	response, e := registry.Do("LRANGE", defs.RedisDeviceIndexKey, 0, -1)
 	var results []RegistrationDetails
 
-	if e != nil {
-		return results, e
-	}
-
-	ids, e := redis.Strings(response, e)
+	ids, e := registry.lrangestr(defs.RedisDeviceIndexKey, 0, -1)
 
 	if e != nil {
-		return results, e
+		return nil, e
 	}
 
 	for _, k := range ids {
 		details, e := registry.loadDetails(registry.genRegistryKey(k))
 
 		if e != nil {
-			continue
+			return nil, e
 		}
 
 		results = append(results, details)
@@ -484,7 +479,13 @@ func (registry *RedisRegistry) lrangestr(key string, start, end int) ([]string, 
 		return nil, e
 	}
 
-	return redis.Strings(response, e)
+	result, e := redis.Strings(response, e)
+
+	if e != nil {
+		return nil, fmt.Errorf(defs.ErrBadRedisResponse)
+	}
+
+	return result, nil
 }
 
 // hmset is a wrapper around hset
