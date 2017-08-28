@@ -32,8 +32,78 @@ func subject() (RedisRegistry, *redigomock.Conn) {
 	}, mock
 }
 
-func Test_RedisRegistry_Goblin(t *testing.T) {
+func Test_RedisRegistry(t *testing.T) {
 	g := goblin.Goblin(t)
+
+	g.Describe("RemoveDevice", func() {
+		r, mock := subject()
+		g.BeforeEach(mock.Clear)
+
+		device := struct {
+			id    string
+			token string
+		}{"eeeeeeeeeeeeeeeeeeee", "some-token"}
+
+		g.AfterEach(func() {
+			g.Assert(mock.ExpectationsWereMet()).Equal(nil)
+		})
+
+		g.It("errors when unable to delete the main registry key", func() {
+			mock.Command("DEL", r.genRegistryKey(device.id)).ExpectError(fmt.Errorf("invalid-delete"))
+			e := r.RemoveDevice(device.id)
+			g.Assert(e.Error()).Equal("invalid-delete")
+		})
+
+		g.It("errors when unable to delete the feedback key", func() {
+			mock.Command("DEL", r.genRegistryKey(device.id)).Expect(nil)
+			mock.Command("DEL", r.genFeedbackKey(device.id)).ExpectError(fmt.Errorf("invalid-delete"))
+			e := r.RemoveDevice(device.id)
+			g.Assert(e.Error()).Equal("invalid-delete")
+		})
+
+		g.It("errors when unable to remove the device from the index", func() {
+			mock.Command("DEL", r.genRegistryKey(device.id)).Expect(nil)
+			mock.Command("DEL", r.genFeedbackKey(device.id)).Expect(nil)
+			mock.Command("LREM", defs.RedisDeviceIndexKey, 1, device.id).ExpectError(fmt.Errorf("invalid-lrem"))
+			e := r.RemoveDevice(device.id)
+			g.Assert(e.Error()).Equal("invalid-lrem")
+		})
+
+		g.It("errors when unable to get a list of tokens", func() {
+			mock.Command("DEL", r.genRegistryKey(device.id)).Expect(nil)
+			mock.Command("DEL", r.genFeedbackKey(device.id)).Expect(nil)
+			mock.Command("LREM", defs.RedisDeviceIndexKey, 1, device.id).Expect(nil)
+			mock.Command("LRANGE", r.genTokenListKey(device.id), 0, -1).ExpectError(fmt.Errorf("invalid-list"))
+			e := r.RemoveDevice(device.id)
+			g.Assert(e.Error()).Equal("invalid-list")
+		})
+
+		g.It("errors when unable to delete the token list", func() {
+			mock.Command("DEL", r.genRegistryKey(device.id)).Expect(nil)
+			mock.Command("DEL", r.genFeedbackKey(device.id)).Expect(nil)
+			mock.Command("LREM", defs.RedisDeviceIndexKey, 1, device.id).Expect(nil)
+			mock.Command("LRANGE", r.genTokenListKey(device.id), 0, -1).ExpectSlice(
+				[]byte(device.token),
+			)
+			mock.Command("DEL", r.genTokenRegistrationKey(device.token)).ExpectError(fmt.Errorf("invalid-del"))
+			mock.Command("DEL", r.genTokenListKey(device.id)).ExpectError(fmt.Errorf("invalid-del"))
+			e := r.RemoveDevice(device.id)
+			g.Assert(e.Error()).Equal("invalid-del")
+		})
+
+		g.It("does not error when unable to delete a single token", func() {
+			mock.Command("DEL", r.genRegistryKey(device.id)).Expect(nil)
+			mock.Command("DEL", r.genFeedbackKey(device.id)).Expect(nil)
+			mock.Command("LREM", defs.RedisDeviceIndexKey, 1, device.id).Expect(nil)
+			mock.Command("LRANGE", r.genTokenListKey(device.id), 0, -1).ExpectSlice(
+				[]byte(device.token),
+			)
+			mock.Command("DEL", r.genTokenRegistrationKey(device.token)).ExpectError(fmt.Errorf("invalid-del"))
+			mock.Command("DEL", r.genTokenListKey(device.id)).Expect(nil)
+			e := r.RemoveDevice(device.id)
+			g.Assert(e).Equal(nil)
+		})
+	})
 
 	g.Describe("FindDevice", func() {
 		r, mock := subject()

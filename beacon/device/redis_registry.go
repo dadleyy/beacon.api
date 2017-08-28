@@ -334,10 +334,8 @@ func (registry *RedisRegistry) RemoveDevice(id string) error {
 		return e
 	}
 
-	_, e := registry.Do("LREM", defs.RedisDeviceIndexKey, 1, id)
-
-	if e == nil {
-		registry.Infof("successfully cleaned %s from registry", id)
+	if _, e := registry.Do("LREM", defs.RedisDeviceIndexKey, 1, id); e != nil {
+		return e
 	}
 
 	tokensListKey := registry.genTokenListKey(id)
@@ -353,17 +351,6 @@ func (registry *RedisRegistry) RemoveDevice(id string) error {
 	}
 
 	return registry.del(tokensListKey)
-}
-
-// Insert executes the LPUSH command to the redis connection
-func (registry *RedisRegistry) Insert(id string) error {
-	if _, e := registry.Do("HSET", registry.genRegistryKey(id), defs.RedisDeviceIDField, id); e != nil {
-		return e
-	}
-
-	_, e := registry.Do("LPUSH", defs.RedisDeviceIndexKey, id)
-
-	return e
 }
 
 // exists extracts the full list of device keys and searches for the target id
