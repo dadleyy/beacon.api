@@ -12,4 +12,7 @@ const (
 
 	// ErrBadInterchangeData returned when unable to unmarshal interchange data.
 	ErrBadInterchangeData = "interchange-error"
+
+	// ErrBadInterchangeAuthentication returned when an interchange message has bad auth.
+	ErrBadInterchangeAuthentication = "interchange-auth"
 )

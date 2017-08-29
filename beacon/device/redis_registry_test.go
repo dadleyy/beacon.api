@@ -705,6 +705,88 @@ func Test_RedisRegistry(t *testing.T) {
 		})
 	})
 
+	g.Describe("LogFeedback", func() {
+		r, mock := subject()
+
+		g.BeforeEach(mock.Clear)
+
+		g.AfterEach(func() {
+			g.Assert(mock.ExpectationsWereMet()).Equal(nil)
+		})
+
+		testFixtures := struct {
+			deviceID string
+		}{"12345"}
+
+		g.It("errors if the message does not have any authentication information", func() {
+			e := r.LogFeedback(interchange.FeedbackMessage{})
+			g.Assert(e.Error()).Equal(defs.ErrBadInterchangeAuthentication)
+		})
+
+		g.Describe("with a valid feedbackMessage", func() {
+			feedbackMessage := interchange.FeedbackMessage{
+				Authentication: &interchange.DeviceMessageAuthentication{
+					DeviceID: testFixtures.deviceID,
+				},
+			}
+
+			g.It("errors if the message has a bad device id", func() {
+				mock.Command("EXISTS", r.genRegistryKey(testFixtures.deviceID)).ExpectError(fmt.Errorf("bad-exists"))
+				e := r.LogFeedback(feedbackMessage)
+				g.Assert(e.Error()).Equal("bad-exists")
+			})
+
+			g.Describe("with a valid device", func() {
+				g.BeforeEach(func() {
+					key := r.genRegistryKey(testFixtures.deviceID)
+					mock.Command("EXISTS", key).Expect([]byte("true"))
+					mock.Command("HMGET", key, deviceFields.id, deviceFields.name, deviceFields.secret).ExpectSlice(
+						[]byte(testFixtures.deviceID),
+						[]byte("buffalo-bills"),
+						[]byte("red-sox"),
+					)
+				})
+
+				g.It("errors if the it is unable to get the length of messages currently in the list", func() {
+					key := r.genFeedbackKey(testFixtures.deviceID)
+					mock.Command("LLEN", key).ExpectError(fmt.Errorf("bad-llen"))
+					e := r.LogFeedback(feedbackMessage)
+					g.Assert(e.Error()).Equal("bad-llen")
+				})
+
+				g.It("errors if the it is unable to push into the registry", func() {
+					key := r.genFeedbackKey(testFixtures.deviceID)
+					mock.Command("LLEN", key).Expect([]byte("0"))
+					mock.Command("LPUSH", key, redigomock.NewAnyData()).ExpectError(fmt.Errorf("bad-push"))
+					e := r.LogFeedback(feedbackMessage)
+					g.Assert(e.Error()).Equal("bad-push")
+				})
+
+				g.Describe("having more entries than the maximum amount", func() {
+					g.BeforeEach(func() {
+						key := r.genFeedbackKey(testFixtures.deviceID)
+						mock.Command("LLEN", key).Expect([]byte(fmt.Sprintf("%d", defs.RedisMaxFeedbackEntries+1)))
+					})
+
+					g.It("attempts to trim the list down to size", func() {
+						key := r.genFeedbackKey(testFixtures.deviceID)
+						mock.Command("LTRIM", key, 0, defs.RedisMaxFeedbackEntries-2).ExpectError(fmt.Errorf("bad-trim"))
+						e := r.LogFeedback(feedbackMessage)
+						g.Assert(e.Error()).Equal("bad-trim")
+					})
+				})
+
+				g.It("succeeds if the it is able to push into the registry", func() {
+					key := r.genFeedbackKey(testFixtures.deviceID)
+					mock.Command("LLEN", key).Expect([]byte("0"))
+					mock.Command("LPUSH", key, redigomock.NewAnyData()).Expect(nil)
+					e := r.LogFeedback(feedbackMessage)
+					g.Assert(e).Equal(nil)
+				})
+			})
+		})
+	})
+
 	g.Describe("ListFeedback", func() {
 		r, mock := subject()
 

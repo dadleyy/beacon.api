@@ -103,7 +103,7 @@ func (registry *RedisRegistry) LogFeedback(message interchange.FeedbackMessage) 
 	auth := message.GetAuthentication()
 
 	if auth == nil {
-		return fmt.Errorf("invalid feedback authentication")
+		return fmt.Errorf(defs.ErrBadInterchangeAuthentication)
 	}
 
 	details, e := registry.FindDevice(auth.DeviceID)
