@@ -1,6 +1,8 @@
-hash: 81c3864d9110cdb9095034bed17e0d81b5467c6d1f53a3b5554d734e9d72864d
-updated: 2017-08-23T00:39:50.221667252-04:00
+hash: 41c5bb56e57ae6ac0bee8a311dbd2d41ac8abe6909bde9f631372d9beb4bafe5
+updated: 2017-08-27T12:49:46.532720319-04:00
 imports:
+- name: github.com/franela/goblin
+  version: 74c9fe110d4bfd04c222a089a309e0a97e258534
 - name: github.com/garyburd/redigo
   version: 433969511232c397de61b1442f9fd49ec06ae9ba
   subpackages:

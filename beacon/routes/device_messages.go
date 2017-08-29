@@ -53,7 +53,11 @@ func (messages *DeviceMessages) CreateMessage(runtime *net.RequestRuntime) net.H
 
 	commandData, e := proto.Marshal(&interchange.ControlMessage{
 		Frames: []*interchange.ControlFrame{
-			&interchange.ControlFrame{message.Red, message.Green, message.Blue},
+			&interchange.ControlFrame{
+				Red:   message.Red,
+				Green: message.Green,
+				Blue:  message.Blue,
+			},
 		},
 	})
 

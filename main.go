@@ -11,6 +11,9 @@ import "syscall"
 import "net/http"
 import "os/signal"
 
+import "crypto/rand"
+import "encoding/hex"
+
 import "github.com/joho/godotenv"
 import "github.com/gorilla/websocket"
 import "github.com/garyburd/redigo/redis"
@@ -33,6 +36,21 @@ func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Se
 	}
 
 	server.Shutdown(context.Background())
+}
+
+// TokenGenerator is the used by the redis registry to generate random strings for device tokens.
+type TokenGenerator struct {
+}
+
+// GenerateToken returns a random hex string.
+func (t TokenGenerator) GenerateToken() (string, error) {
+	buffer := make([]byte, defs.SecurityUserDeviceTokenSize)
+
+	if _, e := rand.Read(buffer); e != nil {
+		return "", e
+	}
+
+	return hex.EncodeToString(buffer), nil
 }
 
 func main() {
@@ -103,8 +121,9 @@ func main() {
 	registrationStream := make(device.RegistrationStream, 10)
 
 	registry := device.RedisRegistry{
-		Conn:   redisConnection,
-		Logger: logging.New(defs.RegistryLogPrefix, logging.Green),
+		Conn:           redisConnection,
+		Logger:         logging.New(defs.RegistryLogPrefix, logging.Green),
+		TokenGenerator: TokenGenerator{},
 	}
 
 	deviceChannels := bg.DeviceChannels{
@@ -125,20 +144,59 @@ func main() {
 	tokenRoutes := routes.NewTokensAPI(&registry, &registry)
 
 	routes := net.RouteList{
-		net.RouteConfig{"GET", defs.SystemRoute}: routes.System,
+		// [/system]
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.SystemRoute,
+		}: routes.System,
 
-		net.RouteConfig{"GET", defs.DeviceRegistrationRoute}:  registrationRoutes.Register,
-		net.RouteConfig{"POST", defs.DeviceRegistrationRoute}: registrationRoutes.Preregister,
+		// [/device-feedback]
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceRegistrationRoute,
+		}: registrationRoutes.Register,
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: defs.DeviceRegistrationRoute,
+		}: registrationRoutes.Preregister,
 
-		net.RouteConfig{"POST", defs.DeviceFeedbackRoute}: feedbackRoutes.CreateFeedback,
-		net.RouteConfig{"GET", defs.DeviceFeedbackRoute}:  feedbackRoutes.ListFeedback,
+		// [/device-feedback]
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: defs.DeviceFeedbackRoute,
+		}: feedbackRoutes.CreateFeedback,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceFeedbackRoute,
+		}: feedbackRoutes.ListFeedback,
 
-		net.RouteConfig{"POST", defs.DeviceTokensRoute}: tokenRoutes.CreateToken,
+		// [/tokens]
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: defs.DeviceTokensRoute,
+		}: tokenRoutes.CreateToken,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceTokensRoute,
+		}: tokenRoutes.ListTokens,
 
-		net.RouteConfig{"POST", defs.DeviceMessagesRoute}: messageRoutes.CreateMessage,
+		// [/device-messages]
+		net.RouteConfig{
+			Method:  "POST",
+			Pattern: defs.DeviceMessagesRoute,
+		}: messageRoutes.CreateMessage,
 
-		net.RouteConfig{"GET", defs.DeviceShorthandRoute}: deviceRoutes.UpdateShorthand,
-		net.RouteConfig{"GET", defs.DeviceListRoute}:      deviceRoutes.ListDevices,
+		// [/devices/:id/:color]
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceShorthandRoute,
+		}: deviceRoutes.UpdateShorthand,
+
+		// [/devices]
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceListRoute,
+		}: deviceRoutes.ListDevices,
 	}
 
 	runtime := net.ServerRuntime{

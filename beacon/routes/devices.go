@@ -72,7 +72,11 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 	case color == "blue":
 		frame.Blue = 255
 	case color == "rand":
-		frame = interchange.ControlFrame{devices.randColorValue(), devices.randColorValue(), devices.randColorValue()}
+		frame = interchange.ControlFrame{
+			Red:   devices.randColorValue(),
+			Green: devices.randColorValue(),
+			Blue:  devices.randColorValue(),
+		}
 	case hexColorRegex.MatchString(color):
 		r, g, b := color[0:2], color[2:4], color[4:6]
 		buff := make([]byte, 1)

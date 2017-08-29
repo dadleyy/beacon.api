@@ -12,6 +12,6 @@ type TokenDetails struct {
 // TokenStore defines the interface for creating tokens.
 type TokenStore interface {
 	CreateToken(string, string, uint) (TokenDetails, error)
-	FindToken(string) (TokenDetails, error)
+	ListTokens(string) ([]TokenDetails, error)
 	AuthorizeToken(string, string, uint) bool
 }
