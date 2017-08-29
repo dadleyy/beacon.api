@@ -56,6 +56,18 @@ func subject() (RedisRegistry, *redigomock.Conn) {
 func Test_RedisRegistry(t *testing.T) {
 	g := goblin.Goblin(t)
 
+	tokenFields := struct {
+		id         string
+		name       string
+		device     string
+		permission string
+	}{
+		defs.RedisDeviceTokenIDField,
+		defs.RedisDeviceTokenNameField,
+		defs.RedisDeviceTokenDeviceIDField,
+		defs.RedisDeviceTokenPermissionField,
+	}
+
 	deviceFields := struct {
 		id     string
 		name   string
@@ -432,6 +444,134 @@ func Test_RedisRegistry(t *testing.T) {
 		})
 	})
 
+	g.Describe("ListTokens", func() {
+		r, mock := subject()
+		g.BeforeEach(mock.Clear)
+
+		fixtures := struct {
+			deviceID            string
+			deviceName          string
+			deviceSecret        string
+			testTokenValue      string
+			testTokenName       string
+			testTokenID         string
+			testTokenPermission string
+		}{
+			deviceID:            "list-tokens-test-device-id",
+			deviceName:          "some-device-name",
+			deviceSecret:        "go-bills",
+			testTokenValue:      "a-token",
+			testTokenName:       "token-id",
+			testTokenID:         "111",
+			testTokenPermission: "111",
+		}
+
+		g.AfterEach(func() {
+			g.Assert(mock.ExpectationsWereMet()).Equal(nil)
+		})
+
+		g.It("fails if it is unable to find the device requested", func() {
+			registryKey := r.genRegistryKey(fixtures.deviceID)
+			mock.Command("EXISTS", registryKey).ExpectError(fmt.Errorf("bad-exists"))
+			_, e := r.ListTokens(fixtures.deviceID)
+			g.Assert(e.Error()).Equal("bad-exists")
+		})
+
+		g.Describe("having found a device", func() {
+			g.BeforeEach(func() {
+				registryKey := r.genRegistryKey(fixtures.deviceID)
+				mock.Command("EXISTS", registryKey).Expect([]byte("true"))
+				mock.Command("HMGET", registryKey, deviceFields.id, deviceFields.name, deviceFields.secret).ExpectSlice(
+					[]byte(fixtures.deviceID),
+					[]byte(fixtures.deviceName),
+					[]byte(fixtures.deviceSecret),
+				)
+			})
+
+			g.It("errors if unable to range over the tokens", func() {
+				tokensListKey := r.genTokenListKey(fixtures.deviceID)
+				mock.Command("LRANGE", tokensListKey, 0, -1).ExpectError(fmt.Errorf("bad-range"))
+				_, e := r.ListTokens(fixtures.deviceID)
+				g.Assert(e.Error()).Equal("bad-range")
+			})
+
+			g.It("returns an empty range if no elements were returned", func() {
+				tokensListKey := r.genTokenListKey(fixtures.deviceID)
+				mock.Command("LRANGE", tokensListKey, 0, -1).ExpectSlice()
+				tokens, e := r.ListTokens(fixtures.deviceID)
+				g.Assert(e).Equal(nil)
+				g.Assert(len(tokens)).Equal(0)
+			})
+
+			g.Describe("having returned some raw tokens from the range", func() {
+				g.BeforeEach(func() {
+					tokensListKey := r.genTokenListKey(fixtures.deviceID)
+					mock.Command("LRANGE", tokensListKey, 0, -1).ExpectSlice(
+						[]byte(fixtures.testTokenValue),
+					)
+				})
+
+				g.It("returns no tokens even if errored during lookup", func() {
+					tokenDetailKey := r.genTokenRegistrationKey(fixtures.testTokenValue)
+					mock.Command(
+						"HMGET",
+						tokenDetailKey,
+						tokenFields.id,
+						tokenFields.name,
+						tokenFields.device,
+						tokenFields.permission,
+					).ExpectError(fmt.Errorf("bad-get"))
+					tokens, e := r.ListTokens(fixtures.deviceID)
+					g.Assert(e).Equal(nil)
+					g.Assert(len(tokens)).Equal(0)
+				})
+
+				g.It("skips tokens with invalid permission masks", func() {
+					tokenDetailKey := r.genTokenRegistrationKey(fixtures.testTokenValue)
+					mock.Command(
+						"HMGET",
+						tokenDetailKey,
+						tokenFields.id,
+						tokenFields.name,
+						tokenFields.device,
+						tokenFields.permission,
+					).ExpectSlice(
+						[]byte(fixtures.testTokenID),
+						[]byte(fixtures.testTokenName),
+						[]byte(fixtures.deviceID),
+						[]byte("asdasdas"),
+					)
+
+					tokens, e := r.ListTokens(fixtures.deviceID)
+					g.Assert(e).Equal(nil)
+					g.Assert(len(tokens)).Equal(0)
+				})
+
+				g.It("returns the token details identified by the value returned from the range", func() {
+					tokenDetailKey := r.genTokenRegistrationKey(fixtures.testTokenValue)
+					mock.Command(
+						"HMGET",
+						tokenDetailKey,
+						tokenFields.id,
+						tokenFields.name,
+						tokenFields.device,
+						tokenFields.permission,
+					).ExpectSlice(
+						[]byte(fixtures.testTokenID),
+						[]byte(fixtures.testTokenName),
+						[]byte(fixtures.deviceID),
+						[]byte(fixtures.testTokenPermission),
+					)
+
+					tokens, e := r.ListTokens(fixtures.deviceID)
+					g.Assert(e).Equal(nil)
+					g.Assert(len(tokens)).Equal(1)
+				})
+			})
+
+		})
+	})
+
 	g.Describe("FindToken", func() {
 		r, mock := subject()
 		g.BeforeEach(mock.Clear)
@@ -618,18 +758,6 @@ func Test_RedisRegistry(t *testing.T) {
 			tokenPermission uint
 		}{"device-id", "a test device", "the device secret", "a test token", "token-secret", 7}
 
-		tokenFields := struct {
-			name       string
-			permission string
-			tokenID    string
-			deviceID   string
-		}{
-			defs.RedisDeviceTokenNameField,
-			defs.RedisDeviceTokenPermissionField,
-			defs.RedisDeviceTokenIDField,
-			defs.RedisDeviceTokenDeviceIDField,
-		}
-
 		g.BeforeEach(func() {
 			generator.t = testFixtures.tokenSecret
 		})
@@ -673,9 +801,9 @@ func Test_RedisRegistry(t *testing.T) {
 					testFixtures.tokenName,
 					tokenFields.permission,
 					redigomock.NewAnyData(),
-					tokenFields.tokenID,
+					tokenFields.id,
 					redigomock.NewAnyData(),
-					tokenFields.deviceID,
+					tokenFields.device,
 					testFixtures.deviceID,
 				).ExpectError(fmt.Errorf("bad-set"))
 				_, e := r.CreateToken(testFixtures.deviceID, testFixtures.tokenName, testFixtures.tokenPermission)
@@ -693,9 +821,9 @@ func Test_RedisRegistry(t *testing.T) {
 					testFixtures.tokenName,
 					tokenFields.permission,
 					redigomock.NewAnyData(),
-					tokenFields.tokenID,
+					tokenFields.id,
 					redigomock.NewAnyData(),
-					tokenFields.deviceID,
+					tokenFields.device,
 					testFixtures.deviceID,
 				).Expect(nil)
 				_, e := r.CreateToken(testFixtures.deviceID, testFixtures.tokenName, testFixtures.tokenPermission)

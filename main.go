@@ -144,11 +144,13 @@ func main() {
 	tokenRoutes := routes.NewTokensAPI(&registry, &registry)
 
 	routes := net.RouteList{
+		// [/system]
 		net.RouteConfig{
 			Method:  "GET",
 			Pattern: defs.SystemRoute,
 		}: routes.System,
 
+		// [/device-feedback]
 		net.RouteConfig{
 			Method:  "GET",
 			Pattern: defs.DeviceRegistrationRoute,
@@ -158,6 +160,7 @@ func main() {
 			Pattern: defs.DeviceRegistrationRoute,
 		}: registrationRoutes.Preregister,
 
+		// [/device-feedback]
 		net.RouteConfig{
 			Method:  "POST",
 			Pattern: defs.DeviceFeedbackRoute,
@@ -167,20 +170,29 @@ func main() {
 			Pattern: defs.DeviceFeedbackRoute,
 		}: feedbackRoutes.ListFeedback,
 
+		// [/tokens]
 		net.RouteConfig{
 			Method:  "POST",
 			Pattern: defs.DeviceTokensRoute,
 		}: tokenRoutes.CreateToken,
+		net.RouteConfig{
+			Method:  "GET",
+			Pattern: defs.DeviceTokensRoute,
+		}: tokenRoutes.ListTokens,
 
+		// [/device-messages]
 		net.RouteConfig{
 			Method:  "POST",
 			Pattern: defs.DeviceMessagesRoute,
 		}: messageRoutes.CreateMessage,
 
+		// [/devices/:id/:color]
 		net.RouteConfig{
 			Method:  "GET",
 			Pattern: defs.DeviceShorthandRoute,
 		}: deviceRoutes.UpdateShorthand,
+
+		// [/devices]
 		net.RouteConfig{
 			Method:  "GET",
 			Pattern: defs.DeviceListRoute,

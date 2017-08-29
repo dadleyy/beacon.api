@@ -2,7 +2,7 @@ GO=go
 
 COMPILE=$(GO) build
 VERSION_PACKAGE=github.com/dadleyy/beacon.api/beacon/version
-LDFLAGS="-X $(VERSION_PACKAGE).Semver=$(VERSION)"
+LDFLAGS="-X $(VERSION_PACKAGE).Semver=$(VERSION) -s -w"
 BUILD_FLAGS=-x -v -ldflags $(LDFLAGS)
 PBCC=protoc
 

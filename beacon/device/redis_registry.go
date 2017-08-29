@@ -192,6 +192,61 @@ func (registry *RedisRegistry) FillRegistration(secret, uuid string) error {
 	return fmt.Errorf(defs.ErrNotFound)
 }
 
+// ListTokens searches the token store for the token details given the token key.
+func (registry *RedisRegistry) ListTokens(query string) ([]TokenDetails, error) {
+	deviceInfo, e := registry.FindDevice(query)
+
+	if e != nil {
+		return nil, e
+	}
+
+	listKey := registry.genTokenListKey(deviceInfo.DeviceID)
+
+	tokenEntries, e := registry.lrangestr(listKey, 0, -1)
+
+	if e != nil {
+		return nil, e
+	}
+
+	results := make([]TokenDetails, 0, len(tokenEntries))
+
+	fields := struct {
+		id         string
+		name       string
+		device     string
+		permission string
+	}{
+		defs.RedisDeviceTokenIDField,
+		defs.RedisDeviceTokenNameField,
+		defs.RedisDeviceTokenDeviceIDField,
+		defs.RedisDeviceTokenPermissionField,
+	}
+
+	for _, tokenValue := range tokenEntries {
+		registryKey := registry.genTokenRegistrationKey(tokenValue)
+		details, e := registry.hmgetstr(registryKey, fields.id, fields.name, fields.device, fields.permission)
+
+		if e != nil {
+			continue
+		}
+
+		permission, e := strconv.ParseUint(details[3], 2, 32)
+
+		if e != nil {
+			continue
+		}
+
+		results = append(results, TokenDetails{
+			TokenID:    details[0],
+			Name:       details[1],
+			DeviceID:   details[2],
+			Permission: uint(permission),
+		})
+	}
+
+	return results, nil
+}
+
 // FindToken searches the token store for the token details given the token key.
 func (registry *RedisRegistry) FindToken(token string) (TokenDetails, error) {
 	// Start w/ an attempt to look up by key directly>
