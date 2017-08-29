@@ -38,9 +38,11 @@ func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Se
 	server.Shutdown(context.Background())
 }
 
+// TokenGenerator is the used by the redis registry to generate random strings for device tokens.
 type TokenGenerator struct {
 }
 
+// GenerateToken returns a random hex string.
 func (t TokenGenerator) GenerateToken() (string, error) {
 	buffer := make([]byte, defs.SecurityUserDeviceTokenSize)
 
