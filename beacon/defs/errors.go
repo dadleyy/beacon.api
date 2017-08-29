@@ -9,4 +9,7 @@ const (
 
 	// ErrBadRedisResponse returned when unable to parse data from redis response.
 	ErrBadRedisResponse = "storage-error"
+
+	// ErrBadInterchangeData returned when unable to unmarshal interchange data.
+	ErrBadInterchangeData = "interchange-error"
 )

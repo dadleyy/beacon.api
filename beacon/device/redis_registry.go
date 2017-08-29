@@ -3,8 +3,6 @@ package device
 import "fmt"
 import "bytes"
 import "strconv"
-import "crypto/rand"
-import "encoding/hex"
 import "github.com/satori/go.uuid"
 import "github.com/garyburd/redigo/redis"
 import "github.com/golang/protobuf/proto"
@@ -17,6 +15,7 @@ import "github.com/dadleyy/beacon.api/beacon/interchange"
 type RedisRegistry struct {
 	*logging.Logger
 	redis.Conn
+	TokenGenerator
 }
 
 // FindDevice searches the registry based on a query string for the first matching device id
@@ -88,7 +87,8 @@ func (registry *RedisRegistry) ListFeedback(id string, count int) ([]interchange
 		message := interchange.FeedbackMessage{}
 
 		if e := proto.UnmarshalText(entry, &message); e != nil {
-			return nil, e
+			registry.Warnf("invalid feedback item device[%d]: %s", feedbackKey, e.Error())
+			return nil, fmt.Errorf(defs.ErrBadInterchangeData)
 		}
 
 		results = append(results, message)
@@ -98,7 +98,7 @@ func (registry *RedisRegistry) ListFeedback(id string, count int) ([]interchange
 	return results, nil
 }
 
-// LogFeedback reserves a spot in the registry to be filled later
+// LogFeedback inserts a feedback item into the redis store.
 func (registry *RedisRegistry) LogFeedback(message interchange.FeedbackMessage) error {
 	auth := message.GetAuthentication()
 
@@ -260,14 +260,18 @@ func (registry *RedisRegistry) AuthorizeToken(deviceID, token string, permission
 
 // CreateToken creates a new auth token for a given device id
 func (registry *RedisRegistry) CreateToken(deviceID, tokenName string, permission uint) (TokenDetails, error) {
-	listKey, keyBytes := registry.genTokenListKey(deviceID), make([]byte, defs.SecurityUserDeviceTokenSize)
+	listKey := registry.genTokenListKey(deviceID)
 	empty, permissionMask, tokenID := TokenDetails{}, fmt.Sprintf("%b", permission), uuid.NewV4().String()
 
-	if _, e := rand.Read(keyBytes); e != nil {
+	if _, e := registry.FindDevice(deviceID); e != nil {
 		return empty, e
 	}
 
-	rawToken := hex.EncodeToString(keyBytes)
+	rawToken, e := registry.GenerateToken()
+
+	if e != nil {
+		return empty, e
+	}
 
 	if _, e := registry.Do("LPUSH", listKey, rawToken); e != nil {
 		return empty, e
@@ -275,23 +279,33 @@ func (registry *RedisRegistry) CreateToken(deviceID, tokenName string, permissio
 
 	registryKey := registry.genTokenRegistrationKey(rawToken)
 
-	if e := registry.hset(registryKey, defs.RedisDeviceTokenNameField, tokenName); e != nil {
-		return empty, e
+	fields := struct {
+		name       string
+		permission string
+		id         string
+		deviceID   string
+	}{
+		defs.RedisDeviceTokenNameField,
+		defs.RedisDeviceTokenPermissionField,
+		defs.RedisDeviceTokenIDField,
+		defs.RedisDeviceTokenDeviceIDField,
 	}
 
-	if e := registry.hset(registryKey, defs.RedisDeviceTokenPermissionField, permissionMask); e != nil {
-		return empty, e
+	details := TokenDetails{
+		TokenID:    tokenID,
+		DeviceID:   deviceID,
+		Token:      rawToken,
+		Name:       tokenName,
+		Permission: permission,
 	}
 
-	if e := registry.hset(registryKey, defs.RedisDeviceTokenIDField, tokenID); e != nil {
-		return empty, e
-	}
-
-	if e := registry.hset(registryKey, defs.RedisDeviceTokenDeviceIDField, deviceID); e != nil {
-		return empty, e
-	}
-
-	return TokenDetails{tokenID, deviceID, rawToken, tokenName, permission}, nil
+	return details, registry.hmset(
+		registryKey,
+		fields.name, tokenName,
+		fields.permission, permissionMask,
+		fields.id, tokenID,
+		fields.deviceID, deviceID,
+	)
 }
 
 // ListRegistrations prints out a list of all the registered devices

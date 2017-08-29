@@ -11,6 +11,9 @@ import "syscall"
 import "net/http"
 import "os/signal"
 
+import "crypto/rand"
+import "encoding/hex"
+
 import "github.com/joho/godotenv"
 import "github.com/gorilla/websocket"
 import "github.com/garyburd/redigo/redis"
@@ -33,6 +36,19 @@ func systemWatch(system chan os.Signal, killers []bg.KillSwitch, server *http.Se
 	}
 
 	server.Shutdown(context.Background())
+}
+
+type TokenGenerator struct {
+}
+
+func (t TokenGenerator) GenerateToken() (string, error) {
+	buffer := make([]byte, defs.SecurityUserDeviceTokenSize)
+
+	if _, e := rand.Read(buffer); e != nil {
+		return "", e
+	}
+
+	return hex.EncodeToString(buffer), nil
 }
 
 func main() {
@@ -103,8 +119,9 @@ func main() {
 	registrationStream := make(device.RegistrationStream, 10)
 
 	registry := device.RedisRegistry{
-		Conn:   redisConnection,
-		Logger: logging.New(defs.RegistryLogPrefix, logging.Green),
+		Conn:           redisConnection,
+		Logger:         logging.New(defs.RegistryLogPrefix, logging.Green),
+		TokenGenerator: TokenGenerator{},
 	}
 
 	deviceChannels := bg.DeviceChannels{
