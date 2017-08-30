@@ -1,7 +1,5 @@
 package security
 
-import "os"
-import "log"
 import "fmt"
 import "io/ioutil"
 import "crypto/rsa"
@@ -9,12 +7,9 @@ import "crypto/x509"
 import "encoding/pem"
 import "encoding/hex"
 
-import "github.com/dadleyy/beacon.api/beacon/defs"
-
 // ServerKey objects contain the rsa private key used to secure communications w/ the api
 type ServerKey struct {
 	*rsa.PrivateKey
-	*log.Logger
 }
 
 // SharedSecret returns the string version of the rsa public key
@@ -48,6 +43,5 @@ func ReadServerKeyFromFile(filename string) (*ServerKey, error) {
 		return nil, e
 	}
 
-	logger := log.New(os.Stdout, defs.ServerKeyLogPrefix, defs.DefaultLoggerFlags)
-	return &ServerKey{privateKey, logger}, nil
+	return &ServerKey{PrivateKey: privateKey}, nil
 }

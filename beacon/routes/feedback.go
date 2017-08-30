@@ -7,16 +7,25 @@ import "github.com/golang/protobuf/proto"
 import "github.com/dadleyy/beacon.api/beacon/net"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
 // NewFeedbackAPI returns a new initialized feed back api
-func NewFeedbackAPI(store device.FeedbackStore) *Feedback {
-	return &Feedback{store}
+func NewFeedbackAPI(store device.FeedbackStore, index device.Index) *Feedback {
+	logger := logging.New(defs.FeedbackAPILogPrefix, logging.Green)
+
+	return &Feedback{
+		LeveledLogger: logger,
+		FeedbackStore: store,
+		Index:         index,
+	}
 }
 
 // Feedback is the route group that handles creating device feedback entries.
 type Feedback struct {
+	logging.LeveledLogger
 	device.FeedbackStore
+	device.Index
 }
 
 type reportEntry struct {
@@ -31,17 +40,24 @@ func (feedback *Feedback) ListFeedback(runtime *net.RequestRuntime) net.HandlerR
 
 	if e != nil || count >= 1 != true || count >= 100 {
 		count = 1
-		runtime.Debugf("defaulting feedback count to 1")
+		feedback.Debugf("defaulting feedback count to 1")
 	}
 
-	entries, e := feedback.FeedbackStore.ListFeedback(runtime.GetQueryParam("device_id"), count-1)
+	deviceID := runtime.GetQueryParam("device_id")
+
+	if _, e := feedback.FindDevice(deviceID); e != nil {
+		feedback.Warnf("invalid device id: %s", deviceID)
+		return runtime.LogicError(defs.ErrNotFound)
+	}
+
+	entries, e := feedback.FeedbackStore.ListFeedback(deviceID, count-1)
 
 	if e != nil {
-		runtime.Warnf("unable to load device feedback: %s", e.Error())
-		return runtime.LogicError("not-found")
+		feedback.Warnf("unable to load device feedback: %s", e.Error())
+		return runtime.ServerError()
 	}
 
-	runtime.Debugf("found %d entries for device %s", len(entries), runtime.GetQueryParam("device_id"))
+	feedback.Debugf("found %d entries for device %s", len(entries), runtime.GetQueryParam("device_id"))
 
 	results := make([]interface{}, 0, len(entries))
 
@@ -60,8 +76,8 @@ func (feedback *Feedback) ListFeedback(runtime *net.RequestRuntime) net.HandlerR
 			report := interchange.ReportMessage{}
 
 			if e := proto.Unmarshal(payload, &report); e != nil {
-				runtime.Errorf("unable to unmarshal latest feedback payload: %s", e.Error())
-				return runtime.LogicError("invalid-state")
+				feedback.Errorf("unable to unmarshal latest feedback payload: %s", e.Error())
+				return runtime.LogicError(defs.ErrBadInterchangeData)
 			}
 
 			results = append(results, reportEntry{report.Red, report.Green, report.Blue})

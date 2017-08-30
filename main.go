@@ -140,7 +140,7 @@ func main() {
 	deviceRoutes := routes.NewDevicesAPI(&registry, &registry)
 	registrationRoutes := routes.NewRegistrationAPI(registrationStream, &registry)
 	messageRoutes := routes.NewDeviceMessagesAPI(&registry, &registry)
-	feedbackRoutes := routes.NewFeedbackAPI(&registry)
+	feedbackRoutes := routes.NewFeedbackAPI(&registry, &registry)
 	tokenRoutes := routes.NewTokensAPI(&registry, &registry)
 
 	routes := net.RouteList{

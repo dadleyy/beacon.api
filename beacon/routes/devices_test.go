@@ -29,7 +29,7 @@ type testDevicesAPIScaffolding struct {
 	pathValues url.Values
 }
 
-func prepareScaffold() testDevicesAPIScaffolding {
+func prepareDeviceAPIScaffold() testDevicesAPIScaffolding {
 	registry := testDeviceRegistry{}
 	tokenStore := testDeviceTokenStore{}
 	api := Devices{
@@ -64,7 +64,7 @@ func Test_DevicesAPI(t *testing.T) {
 		var scaffold testDevicesAPIScaffolding
 
 		g.BeforeEach(func() {
-			scaffold = prepareScaffold()
+			scaffold = prepareDeviceAPIScaffold()
 		})
 
 		g.It("errors if unable to get a list of registrations from the registry", func() {
@@ -89,7 +89,7 @@ func Test_DevicesAPI(t *testing.T) {
 		var scaffold testDevicesAPIScaffolding
 
 		g.BeforeEach(func() {
-			scaffold = prepareScaffold()
+			scaffold = prepareDeviceAPIScaffold()
 		})
 
 		g.It("returns a not-found error if unable to find the device in the store", func() {
