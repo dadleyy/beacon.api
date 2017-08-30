@@ -129,8 +129,20 @@ func Test_FeedbackAPI(t *testing.T) {
 
 	g.Describe("CreateFeedback", func() {
 		var scaffold testFeedbackAPIScaffolding
+
 		g.BeforeEach(func() {
 			scaffold = prepareFeedbackAPIScaffold()
+		})
+
+		g.It("returns an error without a proper content type header", func() {
+			r := scaffold.api.CreateFeedback(scaffold.runtime)
+			g.Assert(r.Errors[0].Error()).Equal(defs.ErrInvalidContentType)
+		})
+
+		g.It("returns an error with an invalid body", func() {
+			scaffold.runtime.Header.Set(defs.APIContentTypeHeader, defs.APIFeedbackContentTypeHeader)
+			r := scaffold.api.CreateFeedback(scaffold.runtime)
+			g.Assert(r.Errors[0].Error()).Equal(defs.ErrBadInterchangeData)
 		})
 	})
 }

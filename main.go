@@ -53,6 +53,22 @@ func (t TokenGenerator) GenerateToken() (string, error) {
 	return hex.EncodeToString(buffer), nil
 }
 
+type BackgroundPublisher struct {
+	channels bg.ChannelStore
+}
+
+func (p *BackgroundPublisher) PublishReader(channelName string, reader io.Reader) error {
+	c, e := p.channels[channelName]
+
+	if e != true {
+		return fmt.Errorf(defs.ErrInvalidBackgroundChannel)
+	}
+
+	c <- reader
+
+	return nil
+}
+
 func main() {
 	options := struct {
 		port       string
@@ -113,9 +129,13 @@ func main() {
 		CheckOrigin:     security.AnyOrigin,
 	}
 
-	backgroundChannels := defs.BackgroundChannels{
+	backgroundChannels := bg.ChannelStore{
 		defs.DeviceControlChannelName:  make(chan io.Reader, 10),
 		defs.DeviceFeedbackChannelName: make(chan io.Reader, 10),
+	}
+
+	publisher := BackgroundPublisher{
+		channels: backgroundChannels,
 	}
 
 	registrationStream := make(device.RegistrationStream, 10)
@@ -203,7 +223,7 @@ func main() {
 		Logger:             logging.New(defs.ServerRuntimeLogPrefix, logging.Magenta),
 		Upgrader:           websocketUpgrader,
 		RouteList:          routes,
-		BackgroundChannels: backgroundChannels,
+		ChannelPublisher:   &publisher,
 		RedisConnection:    redisConnection,
 		ApplicationVersion: version.Semver,
 	}

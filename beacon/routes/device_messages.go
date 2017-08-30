@@ -84,6 +84,6 @@ func (messages *DeviceMessages) CreateMessage(runtime *net.RequestRuntime) net.H
 		return net.HandlerResult{Errors: []error{e}}
 	}
 
-	runtime.Publish(defs.DeviceControlChannelName, bytes.NewBuffer(data))
+	runtime.PublishReader(defs.DeviceControlChannelName, bytes.NewBuffer(data))
 	return net.HandlerResult{}
 }

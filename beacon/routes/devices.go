@@ -133,7 +133,7 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 		return net.HandlerResult{Errors: []error{e}}
 	}
 
-	runtime.Publish(defs.DeviceControlChannelName, bytes.NewBuffer(data))
+	runtime.PublishReader(defs.DeviceControlChannelName, bytes.NewBuffer(data))
 
 	return net.HandlerResult{}
 }

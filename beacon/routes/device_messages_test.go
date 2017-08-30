@@ -94,12 +94,15 @@ func Test_DeviceMessagesAPI(t *testing.T) {
 
 			request := httptest.NewRequest("GET", "/device-messages", body)
 
+			publisher := testChannelPublisher{}
+
 			scaffold = testDeviceMessagesAPIScaffolding{
 				api:       api,
 				internals: internals,
 				body:      body,
 				runtime: &net.RequestRuntime{
-					Request: request,
+					Request:          request,
+					ChannelPublisher: &publisher,
 				},
 			}
 		})

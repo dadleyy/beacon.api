@@ -1,6 +1,9 @@
 package defs
 
 const (
+	// APIContentTypeHeader is the content type header.
+	APIContentTypeHeader = "Content-Type"
+
 	// APIDeviceRegistrationHeader is the header key used by devices to send their shared secret when connecting.
 	APIDeviceRegistrationHeader = "x-device-auth"
 

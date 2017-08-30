@@ -1,5 +1,6 @@
 package routes
 
+import "io"
 import "fmt"
 import "log"
 import "bytes"
@@ -12,6 +13,13 @@ func newTestRouteLogger() *logging.Logger {
 	logger := log.New(out, "", 0)
 	logger.SetFlags(0)
 	return &logging.Logger{Logger: logger}
+}
+
+type testChannelPublisher struct {
+}
+
+func (t *testChannelPublisher) PublishReader(string, io.Reader) error {
+	return nil
 }
 
 type feedbackStoreListParams struct {

@@ -44,6 +44,8 @@ func prepareDeviceAPIScaffold() testDevicesAPIScaffolding {
 
 	pathValues := make(url.Values)
 
+	publisher := testChannelPublisher{}
+
 	return testDevicesAPIScaffolding{
 		api:        &api,
 		registry:   &registry,
@@ -51,8 +53,9 @@ func prepareDeviceAPIScaffold() testDevicesAPIScaffolding {
 		body:       body,
 		pathValues: pathValues,
 		runtime: &net.RequestRuntime{
-			Request: request,
-			Values:  pathValues,
+			Request:          request,
+			Values:           pathValues,
+			ChannelPublisher: &publisher,
 		},
 	}
 }

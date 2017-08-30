@@ -92,27 +92,27 @@ func (feedback *Feedback) CreateFeedback(runtime *net.RequestRuntime) net.Handle
 	buf, e := ioutil.ReadAll(runtime.Body)
 
 	if e != nil {
-		runtime.Errorf("invalid data recieved in feedback api: %s", e.Error())
+		feedback.Errorf("invalid data recieved in feedback api: %s", e.Error())
 		return runtime.LogicError("invalid-request")
 	}
 
 	if runtime.ContentType() != defs.APIFeedbackContentTypeHeader {
-		runtime.Warnf("invalid content type for feedback: %s", runtime.ContentType())
-		return runtime.LogicError("invalid-content-type")
+		feedback.Warnf("invalid content type for feedback: %s", runtime.ContentType())
+		return runtime.LogicError(defs.ErrInvalidContentType)
 	}
 
 	message := interchange.FeedbackMessage{}
 
 	if e := proto.Unmarshal(buf, &message); e != nil {
-		runtime.Errorf("invalid data recieved in feedback api: %s", e.Error())
-		return runtime.LogicError("invalid-request")
+		feedback.Errorf("invalid data recieved in feedback api: %s", e.Error())
+		return runtime.LogicError(defs.ErrBadInterchangeData)
 	}
 
 	auth := message.GetAuthentication()
 
 	if auth == nil {
-		runtime.Errorf("unable to load authentication from message")
-		return runtime.LogicError("invalid-request")
+		feedback.Errorf("unable to load authentication from message")
+		return runtime.LogicError(defs.ErrBadInterchangeData)
 	}
 
 	if e := feedback.LogFeedback(message); e != nil {
