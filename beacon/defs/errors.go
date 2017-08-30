@@ -18,4 +18,10 @@ const (
 
 	// ErrBadInterchangeAuthentication returned when an interchange message has bad auth.
 	ErrBadInterchangeAuthentication = "interchange-auth"
+
+	// ErrServerError returned when an interchange message has bad auth.
+	ErrServerError = "server-error"
+
+	// ErrInvalidColorShorthand returned when the color shorthand request by the client is invalid.
+	ErrInvalidColorShorthand = "invalid-color-shorthand"
 )

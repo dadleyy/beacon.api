@@ -55,7 +55,7 @@ func (runtime *RequestRuntime) ReadBody(target interface{}) error {
 
 // ServerError returns a HandlerResult w/ the standardized server error response text
 func (runtime *RequestRuntime) ServerError() HandlerResult {
-	return HandlerResult{Errors: []error{fmt.Errorf("server-error")}}
+	return HandlerResult{Errors: []error{fmt.Errorf(defs.ErrServerError)}}
 }
 
 // LogicError will wrap the provided strin the appropriate error prefix and return a HandlerResult
