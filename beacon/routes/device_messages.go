@@ -12,7 +12,12 @@ import "github.com/dadleyy/beacon.api/beacon/interchange"
 // NewDeviceMessagesAPI returns a new api for creating device messages.
 func NewDeviceMessagesAPI(index device.Index, auth device.TokenStore) *DeviceMessages {
 	logger := logging.New(defs.DeviceMessagesAPILogPrefix, logging.Green)
-	return &DeviceMessages{logger, auth, index}
+
+	return &DeviceMessages{
+		LeveledLogger: logger,
+		TokenStore:    auth,
+		Index:         index,
+	}
 }
 
 // DeviceMessages is the route group that handles creating device messages
@@ -32,21 +37,21 @@ func (messages *DeviceMessages) CreateMessage(runtime *net.RequestRuntime) net.H
 	}{}
 
 	if e := runtime.ReadBody(&message); e != nil {
-		return net.HandlerResult{Errors: []error{e}}
+		return runtime.LogicError(defs.ErrBadRequestFormat)
 	}
 
 	details, e := messages.FindDevice(message.DeviceID)
 
 	if e != nil {
-		messages.Warnf("unable to locate device: %s", message.DeviceID)
-		return runtime.LogicError("not-found")
+		messages.Warnf("unable to locate device: %v", message.DeviceID)
+		return runtime.LogicError(defs.ErrNotFound)
 	}
 
 	token := runtime.HeaderValue(defs.APIUserTokenHeader)
 
 	if token == "" || messages.AuthorizeToken(details.DeviceID, token, controllerPermission) != true {
 		messages.Warnf("unauthorized attempt to control device (token: %s, device: %s)", token, details.DeviceID)
-		return runtime.LogicError("invalid-token")
+		return runtime.LogicError(defs.ErrNotFound)
 	}
 
 	messages.Debugf("creating device message for[%s]: %v", message.DeviceID, message)

@@ -1,6 +1,7 @@
 package device
 
 import "io"
+import "fmt"
 import "bytes"
 import "encoding/hex"
 import "crypto/sha256"
@@ -27,6 +28,10 @@ type StreamerConnection struct {
 
 // Send writes the provided byte data to the next available writer from the underlying streamer interface
 func (connection *StreamerConnection) Send(message interchange.DeviceMessage) error {
+	if message.GetAuthentication() == nil {
+		return fmt.Errorf(defs.ErrBadInterchangeAuthentication)
+	}
+
 	// Create the message's digest - should be a sha256 hash
 	s := sha256.New()
 

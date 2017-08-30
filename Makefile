@@ -25,6 +25,7 @@ INTERCHANGE_OBJ=$(patsubst %.proto,%.pb.go,$(INTERCHANGE_SRC))
 
 MAX_TEST_CONCURRENCY=10
 TEST_FLAGS=-covermode=atomic -coverprofile={{.Dir}}/.coverprofile -p=$(MAX_TEST_CONCURRENCY)
+TEST_LIST_FMT='{{if len .TestGoFiles}}"go test $(SRC_DIR)/{{.Name}} $(TEST_FLAGS)"{{end}}'
 
 all: $(EXE)
 
@@ -41,7 +42,7 @@ $(LINT_RESULT): $(GO_SRC)
 test: $(GO_SRC)
 	$(GO) vet $(SRC_DIR)/...
 	$(GO) vet $(MAIN)
-	$(GO) list -f '"go test ./beacon/{{.Name}} $(TEST_FLAGS)"' ./beacon/... | xargs -L 1 sh -c
+	$(GO) list -f $(TEST_LIST_FMT) $(SRC_DIR)/... | xargs -L 1 sh -c
 
 $(VENDOR_DIR):
 	go get -u github.com/Masterminds/glide
@@ -54,4 +55,4 @@ clean:
 	rm -rf $(VENDOR_DIR)
 	rm -rf $(EXE)
 	rm -rf $(INTERCHANGE_OBJ)
-	$(GO) list -f '"rm -f {{.Dir}}/.coverprofile"' ./beacon/... | xargs -L 1 sh -c
+	$(GO) list -f '"rm -f {{.Dir}}/.coverprofile"' $(SRC_DIR)/... | xargs -L 1 sh -c
