@@ -8,21 +8,29 @@ import "github.com/satori/go.uuid"
 import "github.com/dadleyy/beacon.api/beacon/net"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 import "github.com/dadleyy/beacon.api/beacon/security"
 
 // NewRegistrationAPI returns a constructed registration api
-func NewRegistrationAPI(stream device.RegistrationStream, registry device.Registry) *Registration {
-	return &Registration{registry, stream}
+func NewRegistrationAPI(stream device.RegistrationStream, registry device.Registry) *RegistrationAPI {
+	logger := logging.New(defs.RegistrationAPILogPrefix, logging.Green)
+
+	return &RegistrationAPI{
+		LeveledLogger: logger,
+		Registry:      registry,
+		stream:        stream,
+	}
 }
 
-// Registration route engine handles receiving http reqests, upgrading and sending along to the registation stream
-type Registration struct {
+// RegistrationAPI route engine handles receiving http reqests, upgrading and sending along to the registation stream
+type RegistrationAPI struct {
+	logging.LeveledLogger
 	device.Registry
 	stream device.RegistrationStream
 }
 
 // Preregister is used to submit a new registation request for a device
-func (registrations *Registration) Preregister(runtime *net.RequestRuntime) net.HandlerResult {
+func (registrations *RegistrationAPI) Preregister(runtime *net.RequestRuntime) net.HandlerResult {
 	request := struct {
 		SharedSecret string `json:"shared_secret"`
 		Name         string `json:"name"`
@@ -75,7 +83,7 @@ func (registrations *Registration) Preregister(runtime *net.RequestRuntime) net.
 }
 
 // Register is the route handler responsible for upgrating + registering connections
-func (registrations *Registration) Register(runtime *net.RequestRuntime) net.HandlerResult {
+func (registrations *RegistrationAPI) Register(runtime *net.RequestRuntime) net.HandlerResult {
 	connection, e := runtime.Websocket()
 
 	if e != nil {

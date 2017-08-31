@@ -115,11 +115,15 @@ func (feedback *Feedback) CreateFeedback(runtime *net.RequestRuntime) net.Handle
 		return runtime.LogicError(defs.ErrBadInterchangeData)
 	}
 
-	if e := feedback.LogFeedback(message); e != nil {
-		runtime.Warnf("unable to find device: %s", e.Error())
-		return runtime.LogicError("not-found")
+	if _, e := feedback.FindDevice(auth.GetDeviceID()); e != nil {
+		return runtime.LogicError(defs.ErrNotFound)
 	}
 
-	runtime.Infof("successfully posted feedback from device[%s]", auth.DeviceID)
+	if e := feedback.LogFeedback(message); e != nil {
+		feedback.Errorf("unable to log device feedback: %s", e.Error())
+		return runtime.ServerError()
+	}
+
+	feedback.Infof("successfully posted feedback from device[%s]", auth.DeviceID)
 	return net.HandlerResult{}
 }
