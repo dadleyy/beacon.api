@@ -1,9 +1,7 @@
 package security
 
-import "os"
 import "io"
 import "fmt"
-import "log"
 import "crypto/rsa"
 import "crypto/x509"
 import "crypto/rand"
@@ -15,7 +13,6 @@ import "github.com/dadleyy/beacon.api/beacon/defs"
 // DeviceKey implements the Signer interface that is used to encode messages sent to the device
 type DeviceKey struct {
 	*rsa.PublicKey
-	*log.Logger
 }
 
 // Sign implements the signer interface
@@ -50,6 +47,5 @@ func ParseDeviceKey(data string) (*DeviceKey, error) {
 		return nil, fmt.Errorf("invalid-public")
 	}
 
-	logger := log.New(os.Stdout, defs.DeviceControlLogPrefix, defs.DefaultLoggerFlags)
-	return &DeviceKey{rsaPublic, logger}, nil
+	return &DeviceKey{PublicKey: rsaPublic}, nil
 }

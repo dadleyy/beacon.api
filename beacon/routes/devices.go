@@ -52,14 +52,14 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 
 	if e != nil {
 		devices.Warnf("shorthand update w/ invalid device id: %s (%s)", query, e.Error())
-		return runtime.LogicError("not-found")
+		return runtime.LogicError(defs.ErrNotFound)
 	}
 
 	token := runtime.HeaderValue(defs.APIUserTokenHeader)
 
 	if token == "" || devices.AuthorizeToken(details.DeviceID, token, controllerPermission) != true {
 		devices.Warnf("unauthorized attempt to control device (token: %s, device: %s)", token, details.DeviceID)
-		return runtime.LogicError("invalid-token")
+		return runtime.LogicError(defs.ErrNotFound)
 	}
 
 	frame := interchange.ControlFrame{}
@@ -103,8 +103,10 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 		frame.Blue = uint32(buff[0])
 
 		devices.Debugf("received rgb color: rgb(%d,%d,%d)", frame.Red, frame.Green, frame.Blue)
+	case color == "off":
+		break
 	default:
-		devices.Debugf("received tricky color: %s", color)
+		return runtime.LogicError(defs.ErrInvalidColorShorthand)
 	}
 
 	commandData, e := proto.Marshal(&interchange.ControlMessage{
@@ -131,7 +133,7 @@ func (devices *Devices) UpdateShorthand(runtime *net.RequestRuntime) net.Handler
 		return net.HandlerResult{Errors: []error{e}}
 	}
 
-	runtime.Publish(defs.DeviceControlChannelName, bytes.NewBuffer(data))
+	runtime.PublishReader(defs.DeviceControlChannelName, bytes.NewBuffer(data))
 
 	return net.HandlerResult{}
 }

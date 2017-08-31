@@ -6,7 +6,7 @@ import "net/http"
 import "github.com/gorilla/websocket"
 import "github.com/garyburd/redigo/redis"
 
-import "github.com/dadleyy/beacon.api/beacon/defs"
+import "github.com/dadleyy/beacon.api/beacon/bg"
 import "github.com/dadleyy/beacon.api/beacon/logging"
 
 // ServerRuntime defines the object that implments the http.Handler interface used during application startup to open
@@ -15,9 +15,9 @@ import "github.com/dadleyy/beacon.api/beacon/logging"
 type ServerRuntime struct {
 	websocket.Upgrader
 	RouteList
+	bg.ChannelPublisher
 	*logging.Logger
 	ApplicationVersion string
-	BackgroundChannels defs.BackgroundChannels
 	RedisConnection    redis.Conn
 }
 
@@ -29,13 +29,13 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 	runtime.Debugf("%s %s %s\n", request.Method, request.URL.Path, request.URL.Host)
 
 	requestRuntime := RequestRuntime{
-		Values:   params,
-		Upgrader: runtime.Upgrader,
-		Logger:   runtime.Logger,
-		Request:  request,
+		Values:           params,
+		Upgrader:         runtime.Upgrader,
+		Logger:           runtime.Logger,
+		Request:          request,
+		ChannelPublisher: runtime.ChannelPublisher,
 
-		responseWriter:     responseWriter,
-		backgroundChannels: runtime.BackgroundChannels,
+		responseWriter: responseWriter,
 	}
 
 	if found == true {
