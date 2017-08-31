@@ -53,10 +53,12 @@ func (t TokenGenerator) GenerateToken() (string, error) {
 	return hex.EncodeToString(buffer), nil
 }
 
+// BackgroundPublisher uses the ChannelStore to publish events from web requests to the background processors.
 type BackgroundPublisher struct {
 	channels bg.ChannelStore
 }
 
+// PublishReader implements the bg.ChannelPublisher Publish method
 func (p *BackgroundPublisher) PublishReader(channelName string, reader io.Reader) error {
 	c, e := p.channels[channelName]
 

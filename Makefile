@@ -11,10 +11,12 @@ VENDOR_DIR=vendor
 
 LINT=golint
 LINT_FLAGS=-set_exit_status
-LINT_RESULT=.lint-results
 
 EXE=beacon-api
 MAIN=$(wildcard ./main.go)
+
+VET=$(GO) vet
+VET_FLAGS=-x
 
 SRC_DIR=./beacon
 GO_SRC=$(wildcard $(MAIN) $(SRC_DIR)/**/*.go)
@@ -29,19 +31,19 @@ TEST_LIST_FMT='{{if len .TestGoFiles}}"go test $(SRC_DIR)/{{.Name}} $(TEST_FLAGS
 
 all: $(EXE)
 
-$(EXE): $(VENDOR_DIR) $(INTERCHANGE_OBJ) $(GO_SRC) $(LINT_RESULT)
+$(EXE): $(VENDOR_DIR) $(INTERCHANGE_OBJ) $(GO_SRC)
 	$(COMPILE) $(BUILD_FLAGS) -o $(EXE) $(MAIN)
 
 $(INTERCHANGE_OBJ): $(INTERCHANGE_SRC)
 	$(PBCC) -I$(INTERCHANGE_DIR) --go_out=$(INTERCHANGE_DIR) $(INTERCHANGE_SRC)
 
-$(LINT_RESULT): $(GO_SRC)
+lint: $(GO_SRC)
 	$(LINT) $(LINT_FLAGS) $(shell $(GO) list $(SRC_DIR)/... | grep -v 'interchange')
-	touch $(LINT_RESULT)
+	$(LINT) $(LINT_FLAGS) ./main.go
 
-test: $(GO_SRC)
-	$(GO) vet $(SRC_DIR)/...
-	$(GO) vet $(MAIN)
+test: $(GO_SRC) lint
+	$(VET) $(VET_FLAGS) $(SRC_DIR)/...
+	$(VET) $(VET_FLAGS) $(MAIN)
 	$(GO) list -f $(TEST_LIST_FMT) $(SRC_DIR)/... | xargs -L 1 sh -c
 
 $(VENDOR_DIR):
@@ -51,7 +53,6 @@ $(VENDOR_DIR):
 	$(GLIDE) install
 
 clean:
-	rm -rf $(LINT_RESULT)
 	rm -rf $(VENDOR_DIR)
 	rm -rf $(EXE)
 	rm -rf $(INTERCHANGE_OBJ)
