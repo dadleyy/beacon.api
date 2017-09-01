@@ -4,7 +4,6 @@ import "fmt"
 import "net/url"
 import "net/http"
 import "encoding/json"
-import "github.com/gorilla/websocket"
 
 import "github.com/dadleyy/beacon.api/beacon/bg"
 import "github.com/dadleyy/beacon.api/beacon/defs"
@@ -13,7 +12,7 @@ import "github.com/dadleyy/beacon.api/beacon/logging"
 // RequestRuntime is used by the ServerRuntime to expose per-request packages of shared system interfaces
 type RequestRuntime struct {
 	url.Values
-	websocket.Upgrader
+	WebsocketUpgrader
 	bg.ChannelPublisher
 	*logging.Logger
 	*http.Request
@@ -64,7 +63,7 @@ func (runtime *RequestRuntime) LogicError(message string) HandlerResult {
 }
 
 // Websocket attempts to updrade the request to a websocket connection
-func (runtime *RequestRuntime) Websocket() (*websocket.Conn, error) {
-	upgrader, responseWriter, request := runtime.Upgrader, runtime.responseWriter, runtime.Request
-	return upgrader.Upgrade(responseWriter, request, nil)
+func (runtime *RequestRuntime) Websocket() (defs.Streamer, error) {
+	responseWriter, request := runtime.responseWriter, runtime.Request
+	return runtime.UpgradeWebsocket(responseWriter, request, nil)
 }

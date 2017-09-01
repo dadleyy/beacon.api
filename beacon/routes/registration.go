@@ -87,8 +87,8 @@ func (registrations *RegistrationAPI) Register(runtime *net.RequestRuntime) net.
 	connection, e := runtime.Websocket()
 
 	if e != nil {
-		runtime.Warnf("unable to upgrade websocket: %s", e.Error())
-		return net.HandlerResult{Errors: []error{e}}
+		registrations.Warnf("unable to upgrade websocket: %s", e.Error())
+		return runtime.LogicError(e.Error())
 	}
 
 	encodedSecret, uuid := runtime.Header.Get(defs.APIDeviceRegistrationHeader), uuid.NewV4()
@@ -96,13 +96,13 @@ func (registrations *RegistrationAPI) Register(runtime *net.RequestRuntime) net.
 	deviceKey, e := security.ParseDeviceKey(encodedSecret)
 
 	if e != nil {
-		runtime.Warnf("invalid hex shared secret: %s", e.Error())
+		registrations.Warnf("invalid hex shared secret: %s", e.Error())
 		connection.Close()
 		return net.HandlerResult{NoRender: true}
 	}
 
 	if e := registrations.FillRegistration(encodedSecret, uuid.String()); e != nil {
-		runtime.Warnf("unable to push device id into store: %s", e.Error())
+		registrations.Warnf("unable to push device id into store: %s", e.Error())
 		connection.Close()
 		return net.HandlerResult{NoRender: true}
 	}
