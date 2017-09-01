@@ -4,6 +4,8 @@ import "io"
 import "fmt"
 import "log"
 import "bytes"
+import "net/http"
+import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/logging"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
@@ -151,4 +153,39 @@ func (t *testDeviceIndex) FindDevice(string) (device.RegistrationDetails, error)
 	}
 
 	return t.foundDevices[0], nil
+}
+
+type testWebsocketUpgrader struct {
+	testErrorStore
+	connections []*testWebsocketConnection
+	errors      []error
+}
+
+func (t *testWebsocketUpgrader) UpgradeWebsocket(http.ResponseWriter, *http.Request, http.Header) (defs.Streamer, error) {
+	if e := t.latestError(t.errors); e != nil {
+		return nil, e
+	}
+
+	if len(t.connections) >= 1 {
+		return t.connections[0], nil
+	}
+
+	return nil, fmt.Errorf("no-connections")
+}
+
+type testWebsocketConnection struct {
+	closeCount int
+}
+
+func (t *testWebsocketConnection) NextReader() (int, io.Reader, error) {
+	return 0, nil, fmt.Errorf("not-implemented")
+}
+
+func (t *testWebsocketConnection) Close() error {
+	t.closeCount++
+	return nil
+}
+
+func (t *testWebsocketConnection) NextWriter(int) (io.WriteCloser, error) {
+	return nil, fmt.Errorf("not-implemented")
 }

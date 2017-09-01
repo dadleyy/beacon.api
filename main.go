@@ -53,6 +53,14 @@ func (t TokenGenerator) GenerateToken() (string, error) {
 	return hex.EncodeToString(buffer), nil
 }
 
+type wsUpgrader struct {
+	websocket.Upgrader
+}
+
+func (u *wsUpgrader) UpgradeWebsocket(w http.ResponseWriter, r *http.Request, h http.Header) (defs.Streamer, error) {
+	return u.Upgrader.Upgrade(w, r, h)
+}
+
 // BackgroundPublisher uses the ChannelStore to publish events from web requests to the background processors.
 type BackgroundPublisher struct {
 	channels bg.ChannelStore
@@ -125,10 +133,12 @@ func main() {
 
 	defer redisConnection.Close()
 
-	websocketUpgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     security.AnyOrigin,
+	websocket := wsUpgrader{
+		Upgrader: websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin:     security.AnyOrigin,
+		},
 	}
 
 	backgroundChannels := bg.ChannelStore{
@@ -223,7 +233,7 @@ func main() {
 
 	runtime := net.ServerRuntime{
 		Logger:             logging.New(defs.ServerRuntimeLogPrefix, logging.Magenta),
-		Upgrader:           websocketUpgrader,
+		WebsocketUpgrader:  &websocket,
 		RouteList:          routes,
 		ChannelPublisher:   &publisher,
 		RedisConnection:    redisConnection,

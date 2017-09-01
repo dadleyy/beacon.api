@@ -3,7 +3,6 @@ package net
 import "fmt"
 import "net/http"
 
-import "github.com/gorilla/websocket"
 import "github.com/garyburd/redigo/redis"
 
 import "github.com/dadleyy/beacon.api/beacon/bg"
@@ -13,7 +12,7 @@ import "github.com/dadleyy/beacon.api/beacon/logging"
 // the http server. It is also responsible for matching inbound requests with it's embedded routelist and creating the
 // request runtime to be sent into the matching route handler.
 type ServerRuntime struct {
-	websocket.Upgrader
+	WebsocketUpgrader
 	RouteList
 	bg.ChannelPublisher
 	*logging.Logger
@@ -29,11 +28,11 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 	runtime.Debugf("%s %s %s\n", request.Method, request.URL.Path, request.URL.Host)
 
 	requestRuntime := RequestRuntime{
-		Values:           params,
-		Upgrader:         runtime.Upgrader,
-		Logger:           runtime.Logger,
-		Request:          request,
-		ChannelPublisher: runtime.ChannelPublisher,
+		Values:            params,
+		WebsocketUpgrader: runtime.WebsocketUpgrader,
+		Logger:            runtime.Logger,
+		Request:           request,
+		ChannelPublisher:  runtime.ChannelPublisher,
 
 		responseWriter: responseWriter,
 	}
