@@ -18,6 +18,9 @@ const (
 	// MainLogPrefix is the log prefix for the main go routine
 	MainLogPrefix = "[beacon api] "
 
+	// RegistrationAPILogPrefix log prefix used by the registration api
+	RegistrationAPILogPrefix = "[registrations api] "
+
 	// FeedbackAPILogPrefix log prefix used by the feedback api
 	FeedbackAPILogPrefix = "[feedback api] "
 

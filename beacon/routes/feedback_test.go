@@ -144,5 +144,40 @@ func Test_FeedbackAPI(t *testing.T) {
 			r := scaffold.api.CreateFeedback(scaffold.runtime)
 			g.Assert(r.Errors[0].Error()).Equal(defs.ErrBadInterchangeData)
 		})
+
+		g.Describe("when the body contains a valid marshalled feedback message", func() {
+
+			g.BeforeEach(func() {
+				scaffold.runtime.Header.Set(defs.APIContentTypeHeader, defs.APIFeedbackContentTypeHeader)
+				buffer := proto.NewBuffer([]byte{})
+				buffer.Marshal(&interchange.FeedbackMessage{
+					Authentication: &interchange.DeviceMessageAuthentication{
+						DeviceID:      "123",
+						MessageDigest: "12345",
+					},
+				})
+				scaffold.body.Grow(len(buffer.Bytes()))
+				scaffold.body.Write(buffer.Bytes())
+			})
+
+			g.It("returns an error if unable to find device", func() {
+				scaffold.index.findErrors = append(scaffold.index.findErrors, fmt.Errorf("not-found"))
+				r := scaffold.api.CreateFeedback(scaffold.runtime)
+				g.Assert(r.Errors[0].Error()).Equal(defs.ErrNotFound)
+			})
+
+			g.It("returns an error if unable to log the feedback", func() {
+				scaffold.index.foundDevices = append(scaffold.index.foundDevices, device.RegistrationDetails{})
+				scaffold.store.logErrors = append(scaffold.store.logErrors, fmt.Errorf("bad-store"))
+				r := scaffold.api.CreateFeedback(scaffold.runtime)
+				g.Assert(r.Errors[0].Error()).Equal(defs.ErrServerError)
+			})
+
+			g.It("returns without an error if successfully logged the feedback", func() {
+				scaffold.index.foundDevices = append(scaffold.index.foundDevices, device.RegistrationDetails{})
+				r := scaffold.api.CreateFeedback(scaffold.runtime)
+				g.Assert(len(r.Errors)).Equal(0)
+			})
+		})
 	})
 }

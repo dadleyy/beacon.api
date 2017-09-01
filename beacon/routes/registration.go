@@ -8,74 +8,82 @@ import "github.com/satori/go.uuid"
 import "github.com/dadleyy/beacon.api/beacon/net"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/device"
+import "github.com/dadleyy/beacon.api/beacon/logging"
 import "github.com/dadleyy/beacon.api/beacon/security"
 
 // NewRegistrationAPI returns a constructed registration api
-func NewRegistrationAPI(stream device.RegistrationStream, registry device.Registry) *Registration {
-	return &Registration{registry, stream}
+func NewRegistrationAPI(stream device.RegistrationStream, registry device.Registry) *RegistrationAPI {
+	logger := logging.New(defs.RegistrationAPILogPrefix, logging.Green)
+
+	return &RegistrationAPI{
+		LeveledLogger: logger,
+		Registry:      registry,
+		stream:        stream,
+	}
 }
 
-// Registration route engine handles receiving http reqests, upgrading and sending along to the registation stream
-type Registration struct {
+// RegistrationAPI route engine handles receiving http reqests, upgrading and sending along to the registation stream
+type RegistrationAPI struct {
+	logging.LeveledLogger
 	device.Registry
 	stream device.RegistrationStream
 }
 
 // Preregister is used to submit a new registation request for a device
-func (registrations *Registration) Preregister(runtime *net.RequestRuntime) net.HandlerResult {
+func (registrations *RegistrationAPI) Preregister(runtime *net.RequestRuntime) net.HandlerResult {
 	request := struct {
 		SharedSecret string `json:"shared_secret"`
 		Name         string `json:"name"`
 	}{}
 
 	if e := runtime.ReadBody(&request); e != nil {
-		runtime.Warnf("invalid request: %s", e.Error())
-		return runtime.LogicError("bad-request")
+		registrations.Warnf("invalid request: %s", e.Error())
+		return runtime.LogicError(defs.ErrBadRequestFormat)
 	}
 
 	if valid := len(request.Name) > 1 && len(request.SharedSecret) > 1; !valid {
-		runtime.Warnf("invalid registration request: %v", request)
-		return runtime.LogicError("bad-request")
+		registrations.Warnf("invalid registration request: %v", request)
+		return runtime.LogicError(defs.ErrBadRequestFormat)
 	}
 
 	if _, e := registrations.FindDevice(request.Name); e == nil {
-		runtime.Warnf("duplicate device name registration: %v", request)
-		return runtime.LogicError("duplicate-name")
+		registrations.Warnf("duplicate device name registration: %v", request)
+		return runtime.LogicError(defs.ErrDuplicateRegistrationName)
 	}
 
 	block, e := hex.DecodeString(request.SharedSecret)
 
 	if e != nil {
-		runtime.Warnf("invalid shared secret: %s", e.Error())
-		return runtime.LogicError("invalid-key")
+		registrations.Warnf("invalid shared secret: %s", e.Error())
+		return runtime.LogicError(defs.ErrInvalidDeviceSharedSecret)
 	}
 
 	pub, e := x509.ParsePKIXPublicKey(block)
 
 	if e != nil {
-		runtime.Warnf("invalid shared secret: %s", e.Error())
-		return runtime.LogicError("invalid-key")
+		registrations.Warnf("invalid shared secret: %s", e.Error())
+		return runtime.LogicError(defs.ErrInvalidDeviceSharedSecret)
 	}
 
 	if _, ok := pub.(*rsa.PublicKey); ok != true {
-		runtime.Warnf("incorrect shared secret key, not rsa format: %s", request.SharedSecret)
+		registrations.Warnf("incorrect shared secret key, not rsa format: %s", request.SharedSecret)
 		return runtime.LogicError("bad-key-format")
 	}
 
 	details := device.RegistrationRequest(request)
 
 	if e := registrations.AllocateRegistration(details); e != nil {
-		runtime.Errorf("unable to allocate registration: %s", e.Error())
+		registrations.Errorf("unable to allocate registration: %s", e.Error())
 		return runtime.ServerError()
 	}
 
-	runtime.Infof("successfully pre-registered device: %s", details.Name)
+	registrations.Infof("successfully pre-registered device: %s", details.Name)
 
 	return net.HandlerResult{}
 }
 
 // Register is the route handler responsible for upgrating + registering connections
-func (registrations *Registration) Register(runtime *net.RequestRuntime) net.HandlerResult {
+func (registrations *RegistrationAPI) Register(runtime *net.RequestRuntime) net.HandlerResult {
 	connection, e := runtime.Websocket()
 
 	if e != nil {
