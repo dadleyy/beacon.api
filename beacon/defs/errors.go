@@ -28,6 +28,12 @@ const (
 	// ErrInvalidBackgroundChannel returned when attempting to publish to an invalid background channel
 	ErrInvalidBackgroundChannel = "invalid-background-channel"
 
+	// ErrInvalidDeviceSharedSecret returned when attempting to use an invalid shared secret during registration.
+	ErrInvalidDeviceSharedSecret = "invalid-shared-secret"
+
+	// ErrDuplicateRegistrationName returned when registering a name that already exists.
+	ErrDuplicateRegistrationName = "duplicate-name"
+
 	// ErrInvalidColorShorthand returned when the color shorthand request by the client is invalid.
 	ErrInvalidColorShorthand = "invalid-color-shorthand"
 )

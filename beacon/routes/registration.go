@@ -37,47 +37,47 @@ func (registrations *RegistrationAPI) Preregister(runtime *net.RequestRuntime) n
 	}{}
 
 	if e := runtime.ReadBody(&request); e != nil {
-		runtime.Warnf("invalid request: %s", e.Error())
-		return runtime.LogicError("bad-request")
+		registrations.Warnf("invalid request: %s", e.Error())
+		return runtime.LogicError(defs.ErrBadRequestFormat)
 	}
 
 	if valid := len(request.Name) > 1 && len(request.SharedSecret) > 1; !valid {
-		runtime.Warnf("invalid registration request: %v", request)
-		return runtime.LogicError("bad-request")
+		registrations.Warnf("invalid registration request: %v", request)
+		return runtime.LogicError(defs.ErrBadRequestFormat)
 	}
 
 	if _, e := registrations.FindDevice(request.Name); e == nil {
-		runtime.Warnf("duplicate device name registration: %v", request)
-		return runtime.LogicError("duplicate-name")
+		registrations.Warnf("duplicate device name registration: %v", request)
+		return runtime.LogicError(defs.ErrDuplicateRegistrationName)
 	}
 
 	block, e := hex.DecodeString(request.SharedSecret)
 
 	if e != nil {
-		runtime.Warnf("invalid shared secret: %s", e.Error())
-		return runtime.LogicError("invalid-key")
+		registrations.Warnf("invalid shared secret: %s", e.Error())
+		return runtime.LogicError(defs.ErrInvalidDeviceSharedSecret)
 	}
 
 	pub, e := x509.ParsePKIXPublicKey(block)
 
 	if e != nil {
-		runtime.Warnf("invalid shared secret: %s", e.Error())
-		return runtime.LogicError("invalid-key")
+		registrations.Warnf("invalid shared secret: %s", e.Error())
+		return runtime.LogicError(defs.ErrInvalidDeviceSharedSecret)
 	}
 
 	if _, ok := pub.(*rsa.PublicKey); ok != true {
-		runtime.Warnf("incorrect shared secret key, not rsa format: %s", request.SharedSecret)
+		registrations.Warnf("incorrect shared secret key, not rsa format: %s", request.SharedSecret)
 		return runtime.LogicError("bad-key-format")
 	}
 
 	details := device.RegistrationRequest(request)
 
 	if e := registrations.AllocateRegistration(details); e != nil {
-		runtime.Errorf("unable to allocate registration: %s", e.Error())
+		registrations.Errorf("unable to allocate registration: %s", e.Error())
 		return runtime.ServerError()
 	}
 
-	runtime.Infof("successfully pre-registered device: %s", details.Name)
+	registrations.Infof("successfully pre-registered device: %s", details.Name)
 
 	return net.HandlerResult{}
 }
