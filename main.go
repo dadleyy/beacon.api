@@ -182,7 +182,7 @@ func main() {
 			Pattern: defs.SystemRoute,
 		}: routes.System,
 
-		// [/device-feedback]
+		// [/registration]
 		net.RouteConfig{
 			Method:  "GET",
 			Pattern: defs.DeviceRegistrationRoute,

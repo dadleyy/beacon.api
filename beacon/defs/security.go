@@ -4,6 +4,9 @@ const (
 	// SecurityUserDeviceTokenSize is the size of user device tokens
 	SecurityUserDeviceTokenSize = 20
 
+	// SecurityUserDeviceNameMinLength is the size of user device tokens
+	SecurityUserDeviceNameMinLength = 5
+
 	// SecurityMinimumDeviceSharedSecretSize is the minimum size of shared secrets
 	SecurityMinimumDeviceSharedSecretSize = 20
 )

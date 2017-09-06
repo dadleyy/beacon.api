@@ -7,9 +7,9 @@ import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/logging"
 
 // NewTokensAPI inititalizes a new token api.
-func NewTokensAPI(store device.TokenStore, index device.Index) *Tokens {
+func NewTokensAPI(store device.TokenStore, index device.Index) *TokensAPI {
 	logger := logging.New(defs.TokensAPILogPrefix, logging.Green)
-	return &Tokens{logger, store, index}
+	return &TokensAPI{logger, store, index}
 }
 
 type tokenRequest struct {
@@ -18,20 +18,20 @@ type tokenRequest struct {
 	Permission uint   `json:"permission"`
 }
 
-// Tokens defines the api for creating/deleting device auth tokens.
-type Tokens struct {
+// TokensAPI defines the api for creating/deleting device auth tokens.
+type TokensAPI struct {
 	logging.LeveledLogger
 	device.TokenStore
 	device.Index
 }
 
 // CreateToken authenticates the incoming request and attempts to allocate a new auth token.
-func (tokens *Tokens) CreateToken(requestRuntime *net.RequestRuntime) net.HandlerResult {
+func (tokens *TokensAPI) CreateToken(requestRuntime *net.RequestRuntime) net.HandlerResult {
 	request := tokenRequest{}
 
 	if e := requestRuntime.ReadBody(&request); e != nil {
 		tokens.Warnf("received invalid request: %s", e.Error())
-		return requestRuntime.LogicError("invalid-request")
+		return requestRuntime.LogicError(defs.ErrInvalidTokenRequest)
 	}
 
 	if request.Permission&defs.SecurityDeviceTokenPermissionAll == 0 {
@@ -39,28 +39,28 @@ func (tokens *Tokens) CreateToken(requestRuntime *net.RequestRuntime) net.Handle
 		request.Permission = defs.SecurityDeviceTokenPermissionViewer
 	}
 
-	if valid := len(request.Name) >= 5; valid != true {
-		return requestRuntime.LogicError("invalid-name")
+	if (len(request.Name) >= defs.SecurityUserDeviceNameMinLength) != true {
+		return requestRuntime.LogicError(defs.ErrInvalidDeviceTokenName)
 	}
 
 	registration, e := tokens.FindDevice(request.DeviceID)
 
 	if e != nil {
 		tokens.Warnf("unable to find device (device id: %s): %s", request.DeviceID, e.Error())
-		return requestRuntime.LogicError("not-found")
+		return requestRuntime.LogicError(defs.ErrNotFound)
 	}
 
 	token := requestRuntime.HeaderValue(defs.APIUserTokenHeader)
 
 	if token == "" {
 		tokens.Warnf("attempt to create token w/o auth for device %s", registration.DeviceID)
-		return requestRuntime.LogicError("invalid-token")
+		return requestRuntime.LogicError(defs.ErrInvalidTokenRequest)
 	}
 
 	// Attempt to authorize the provided token against the admin permission.
 	if tokens.AuthorizeToken(registration.DeviceID, token, defs.SecurityDeviceTokenPermissionAdmin) != true {
 		tokens.Warnf("unauthorized attempt to create token (token: %s, device: %s)", token, registration.DeviceID)
-		return requestRuntime.LogicError("invalid-token")
+		return requestRuntime.LogicError(defs.ErrInvalidTokenRequest)
 	}
 
 	tokens.Debugf("creating device token for device %s (permission: %b)", registration.DeviceID, request.Permission)
@@ -68,7 +68,7 @@ func (tokens *Tokens) CreateToken(requestRuntime *net.RequestRuntime) net.Handle
 }
 
 // ListTokens returns a set tokens based on the device id provided.
-func (tokens *Tokens) ListTokens(requestRuntime *net.RequestRuntime) net.HandlerResult {
+func (tokens *TokensAPI) ListTokens(requestRuntime *net.RequestRuntime) net.HandlerResult {
 	id := requestRuntime.GetQueryParam("device_id")
 
 	if id == "" {
@@ -104,7 +104,7 @@ func (tokens *Tokens) ListTokens(requestRuntime *net.RequestRuntime) net.Handler
 	return net.HandlerResult{Results: deviceTokens}
 }
 
-func (tokens *Tokens) create(deviceID, name string, permission uint) net.HandlerResult {
+func (tokens *TokensAPI) create(deviceID, name string, permission uint) net.HandlerResult {
 	token, e := tokens.TokenStore.CreateToken(deviceID, name, permission)
 
 	if e != nil {

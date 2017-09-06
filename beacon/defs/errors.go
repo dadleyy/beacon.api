@@ -1,6 +1,12 @@
 package defs
 
 const (
+	// ErrInvalidDeviceTokenName is returned when a user submits an invalid token name.
+	ErrInvalidDeviceTokenName = "invalid-name"
+
+	// ErrInvalidTokenRequest is returned from the registry when allocation is requested with bad contents.
+	ErrInvalidTokenRequest = "invalid-request"
+
 	// ErrInvalidRegistrationRequest is returned from the registry when allocation is requested with bad contents.
 	ErrInvalidRegistrationRequest = "invalid-registration"
 

@@ -105,14 +105,21 @@ func (t *testErrorStore) latestError(errList []error) error {
 }
 
 type testDeviceTokenStore struct {
-	authorized     bool
-	createdTokens  []device.TokenDetails
-	creationErrors []error
-	listedTokens   []device.TokenDetails
-	listedErrors   []error
+	authorized            bool
+	createdTokens         []device.TokenDetails
+	creationErrors        []error
+	listedTokens          []device.TokenDetails
+	listedErrors          []error
+	authorizationAttempts map[string]map[string]uint
 }
 
-func (t *testDeviceTokenStore) AuthorizeToken(string, string, uint) bool {
+func (t *testDeviceTokenStore) AuthorizeToken(deviceID string, newToken string, level uint) bool {
+	if t.authorizationAttempts == nil {
+		t.authorizationAttempts = make(map[string]map[string]uint)
+	}
+
+	t.authorizationAttempts[deviceID] = map[string]uint{newToken: level}
+
 	return t.authorized
 }
 
