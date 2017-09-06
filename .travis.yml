@@ -10,6 +10,7 @@ install:
   - export PATH=${PATH}:/usr/local/protoc-3.3.0/bin
   - protoc --version
   - go get github.com/modocache/gover
+  - rm protoc-3.3.0-linux-x86_64.zip
 script:
   - touch .env
   - VERSION=$TRAVIS_COMMIT make EXE=./dist/beacon/bin/beacon-api
@@ -18,6 +19,7 @@ after_success:
   - tar -czvf ./dist/beacon-$(go env GOOS)-$(go env GOARCH).tar.gz -C ./dist/beacon ./
   - gover ./beacon ./coverage.txt
   - bash <(curl -s https://codecov.io/bash)
+  - ls -lah ./dist
 deploy:
   provider: releases
   api_key:
