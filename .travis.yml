@@ -1,19 +1,52 @@
-dist: trusty
+os: linux
 language: go
-go:
-  - 1.8
-  - 1.9
-install:
-  - sudo apt-get install unzip
-  - wget https://github.com/google/protobuf/releases/download/v3.3.0/protoc-3.3.0-linux-x86_64.zip
-  - sudo unzip protoc-3.3.0-linux-x86_64.zip -d /usr/local/protoc-3.3.0
-  - export PATH=${PATH}:/usr/local/protoc-3.3.0/bin
-  - protoc --version
-  - go get github.com/modocache/gover
-script: 
-  - touch .env
-  - VERSION=$TRAVIS_COMMIT make
-  - make test
-after_success:
-  - gover ./beacon ./coverage.txt
-  - bash <(curl -s https://codecov.io/bash)
+group: stable
+sudo: true
+dist: trusty
+go: 1.9
+jobs:
+  include:
+  - stage: test
+    go: 1.9
+    script:
+    - sudo apt-get install unzip
+    - wget https://github.com/google/protobuf/releases/download/v3.3.0/protoc-3.3.0-linux-x86_64.zip
+    - sudo unzip protoc-3.3.0-linux-x86_64.zip -d /usr/local/protoc-3.3.0
+    - export PATH=${PATH}:/usr/local/protoc-3.3.0/bin
+    - protoc --version
+    - go get github.com/modocache/gover
+    - rm protoc-3.3.0-linux-x86_64.zip
+    - touch .env
+    - make test
+    - gover ./beacon ./coverage.txt
+    - bash <(curl -s https://codecov.io/bash)
+  - stage: build/deploy binary
+    go: 1.9
+    script:
+    - sudo apt-get install unzip
+    - wget https://github.com/google/protobuf/releases/download/v3.3.0/protoc-3.3.0-linux-x86_64.zip
+    - sudo unzip protoc-3.3.0-linux-x86_64.zip -d /usr/local/protoc-3.3.0
+    - export PATH=${PATH}:/usr/local/protoc-3.3.0/bin
+    - protoc --version
+    - go get github.com/modocache/gover
+    - rm protoc-3.3.0-linux-x86_64.zip
+    - touch .env
+    - VERSION=$TRAVIS_COMMIT make EXE=./dist/beacon/bin/beacon-api
+    - tar -czvf ./dist/beacon-$(go env GOOS)-$(go env GOARCH).tar.gz -C ./dist/beacon ./
+    deploy:
+      provider: releases
+      file_glob: true
+      skip_cleanup: true
+      api_key:
+        secure: N4co8ldz37inM+zW3rMa6RXFE6/uqq4H4iIyP2dwCpv/9tWc8FtebCpLNM4FknCTZUxnEgOqUwWCIHvxM2oKW/9w2J6/HSsUCJy0T+C8ge2/lhbf9Ti+hhV+YGfv5RtE+nYbT8ydyC1oEAp/jQjcWzSbYmqOq2twIMXWYDVJy/TtNxbfOrh+QpxsHCktzgoieszkutTW4/3+xdRFvF7qX97TTUAqsi978OSFDe/YtUWOMtonb3oClFgeMyvB1b+z359qeGfFm3IDrmUadDI7JKkqSyaVwZ5Lv/GdchzJ/yxX2JbSzww+n4iblqlyK3MjFACimS36Dk/K28OD84ody/soUTmvEQiiIaupZq3NHX/FTIiA7ATEJ54G21A3qSfZRDPCQHdjlsU0OPvGQWyl33pR9m36XSpL3MAA8NTlSoTTehzLzJSYWyZ1f/U/j44f3xIbKo0iiyKctGtFyzN0U49uDocBmOEFyWX1BMGUGAaczpMHh+qzFK4RRD6gpmfTFI0up0SceuaCl6HFWa+phaGIviJ0b9scEGCYn1JJW+9OWoUGlvV+B2awNC+ND5tqM23pQCQqmybCaQPYoPjBN1jcL4KO3cLOxqKn/5bGO//nNLD24bkPRdUhGZMUanWhkgDlQqbQMRy3TM2HFjuYQlLe6aPAm5Yu9OMM6aPkjRg=
+      file:
+        - "./dist/*.tar.gz"
+      on:
+        repo: dadleyy/beacon.api
+        tags: true
+  - stage: build/deploy image
+    go: 1.9
+    script:
+    - ./auto/travis/build_image.sh
+script:
+  echo "no-op"

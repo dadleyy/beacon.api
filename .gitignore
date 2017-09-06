@@ -16,6 +16,7 @@ vendor/*/
 dump.rdb
 coverage.txt
 beacon-api
+/dist
 
 # Folders
 _obj
