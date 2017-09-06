@@ -1,6 +1,7 @@
 os: linux
 language: go
 group: stable
+sudo: true
 dist: trusty
 go: 1.9
 jobs:
