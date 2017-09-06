@@ -47,6 +47,5 @@ jobs:
     go: 1.9
     script:
     - ./auto/travis/build_image.sh
-    - docker images
 script:
   echo "no-op"
