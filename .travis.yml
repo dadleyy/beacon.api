@@ -20,7 +20,7 @@ jobs:
     - make test
     - gover ./beacon ./coverage.txt
     - bash <(curl -s https://codecov.io/bash)
-  - stage: build/deploy
+  - stage: build/deploy binary
     go: 1.9
     script:
     - sudo apt-get install unzip
@@ -44,7 +44,7 @@ jobs:
       on:
         repo: dadleyy/beacon.api
         tags: true
-  - stage: build docker image
+  - stage: build/deploy image
     go: 1.9
     script:
     - ./auto/travis/build_image.sh
