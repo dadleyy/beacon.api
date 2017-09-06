@@ -15,7 +15,6 @@ script:
   - VERSION=$TRAVIS_COMMIT make EXE=./dist/beacon/bin/beacon-api
   - make test
 after_success:
-  - export ARTIFACT_NAME=beacon-$(go env GOOS)-$(go env GOARCH).tar.gz
   - tar -czvf ./dist/beacon-$(go env GOOS)-$(go env GOARCH).tar.gz -C ./dist/beacon ./
   - gover ./beacon ./coverage.txt
   - bash <(curl -s https://codecov.io/bash)
