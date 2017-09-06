@@ -1,6 +1,15 @@
 package defs
 
 const (
+	// ErrInvalidDeviceID is returned when a user submits an invalid device id to a route that requires one.
+	ErrInvalidDeviceID = "invalid-device-id"
+
+	// ErrInvalidDeviceTokenName is returned when a user submits an invalid token name.
+	ErrInvalidDeviceTokenName = "invalid-name"
+
+	// ErrInvalidTokenRequest is returned from the registry when allocation is requested with bad contents.
+	ErrInvalidTokenRequest = "invalid-request"
+
 	// ErrInvalidRegistrationRequest is returned from the registry when allocation is requested with bad contents.
 	ErrInvalidRegistrationRequest = "invalid-registration"
 
