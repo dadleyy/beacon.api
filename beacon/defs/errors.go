@@ -1,6 +1,9 @@
 package defs
 
 const (
+	// ErrInvalidDeviceID is returned when a user submits an invalid device id to a route that requires one.
+	ErrInvalidDeviceID = "invalid-device-id"
+
 	// ErrInvalidDeviceTokenName is returned when a user submits an invalid token name.
 	ErrInvalidDeviceTokenName = "invalid-name"
 

@@ -43,6 +43,73 @@ func Test_TokensAPI(suite *testing.T) {
 
 	scaffold := &tokensAPIScaffolding{}
 
+	g.Describe("ListTokens", func() {
+
+		g.BeforeEach(scaffold.Reset)
+
+		g.It("fails without finding a device id in the query string", func() {
+			r := scaffold.api.ListTokens(scaffold.runtime)
+			g.Assert(r.Errors[0].Error()).Equal(defs.ErrInvalidDeviceID)
+		})
+
+		g.Describe("with a valid device id in the request", func() {
+
+			g.BeforeEach(func() {
+				scaffold.runtime = &net.RequestRuntime{
+					Request: httptest.NewRequest("GET", "/tokens?device_id=some-device", scaffold.body),
+				}
+			})
+
+			g.It("fails without having set the token authorization header", func() {
+				scaffold.index.foundDevices = append(scaffold.index.foundDevices, device.RegistrationDetails{})
+				r := scaffold.api.ListTokens(scaffold.runtime)
+				g.Assert(r.Errors[0].Error()).Equal(defs.ErrNotFound)
+			})
+
+			g.Describe("having found a token in the header", func() {
+				g.BeforeEach(func() {
+					scaffold.runtime.Header.Set(defs.APIUserTokenHeader, "some-token")
+				})
+
+				g.It("fails without finding a device associated with the id in the query string", func() {
+					scaffold.index.findErrors = append(scaffold.index.findErrors, fmt.Errorf("bad-find"))
+					r := scaffold.api.ListTokens(scaffold.runtime)
+					g.Assert(r.Errors[0].Error()).Equal(defs.ErrNotFound)
+				})
+
+				g.It("fails if unauthorized attempt", func() {
+					scaffold.index.foundDevices = append(scaffold.index.foundDevices, device.RegistrationDetails{})
+					r := scaffold.api.ListTokens(scaffold.runtime)
+					g.Assert(r.Errors[0].Error()).Equal(defs.ErrNotFound)
+				})
+
+				g.Describe("with valid auth and found devices", func() {
+
+					g.BeforeEach(func() {
+						scaffold.index.foundDevices = append(scaffold.index.foundDevices, device.RegistrationDetails{})
+						scaffold.store.authorized = true
+					})
+
+					g.It("fails if unable to list tokens", func() {
+						scaffold.store.listedErrors = append(scaffold.store.listedErrors, fmt.Errorf("bad-list"))
+						r := scaffold.api.ListTokens(scaffold.runtime)
+						g.Assert(r.Errors[0].Error()).Equal(defs.ErrServerError)
+					})
+
+					g.It("returns the found tokens", func() {
+						scaffold.store.listedTokens = append(scaffold.store.listedTokens, device.TokenDetails{})
+						r := scaffold.api.ListTokens(scaffold.runtime)
+						g.Assert(len(r.Errors)).Equal(0)
+					})
+
+				})
+
+			})
+
+		})
+
+	})
+
 	g.Describe("CreateToken", func() {
 
 		g.BeforeEach(scaffold.Reset)
