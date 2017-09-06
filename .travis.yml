@@ -19,9 +19,9 @@ after_success:
   - tar -czvf ./dist/beacon-$(go env GOOS)-$(go env GOARCH).tar.gz -C ./dist/beacon ./
   - gover ./beacon ./coverage.txt
   - bash <(curl -s https://codecov.io/bash)
-  - ls -lah ./dist
 deploy:
   provider: releases
+  file_glob: true
   api_key:
     secure: N4co8ldz37inM+zW3rMa6RXFE6/uqq4H4iIyP2dwCpv/9tWc8FtebCpLNM4FknCTZUxnEgOqUwWCIHvxM2oKW/9w2J6/HSsUCJy0T+C8ge2/lhbf9Ti+hhV+YGfv5RtE+nYbT8ydyC1oEAp/jQjcWzSbYmqOq2twIMXWYDVJy/TtNxbfOrh+QpxsHCktzgoieszkutTW4/3+xdRFvF7qX97TTUAqsi978OSFDe/YtUWOMtonb3oClFgeMyvB1b+z359qeGfFm3IDrmUadDI7JKkqSyaVwZ5Lv/GdchzJ/yxX2JbSzww+n4iblqlyK3MjFACimS36Dk/K28OD84ody/soUTmvEQiiIaupZq3NHX/FTIiA7ATEJ54G21A3qSfZRDPCQHdjlsU0OPvGQWyl33pR9m36XSpL3MAA8NTlSoTTehzLzJSYWyZ1f/U/j44f3xIbKo0iiyKctGtFyzN0U49uDocBmOEFyWX1BMGUGAaczpMHh+qzFK4RRD6gpmfTFI0up0SceuaCl6HFWa+phaGIviJ0b9scEGCYn1JJW+9OWoUGlvV+B2awNC+ND5tqM23pQCQqmybCaQPYoPjBN1jcL4KO3cLOxqKn/5bGO//nNLD24bkPRdUhGZMUanWhkgDlQqbQMRy3TM2HFjuYQlLe6aPAm5Yu9OMM6aPkjRg=
   file:
