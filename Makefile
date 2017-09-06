@@ -41,7 +41,7 @@ lint: $(GO_SRC)
 	$(LINT) $(LINT_FLAGS) $(shell $(GO) list $(SRC_DIR)/... | grep -v 'interchange')
 	$(LINT) $(LINT_FLAGS) ./main.go
 
-test: $(GO_SRC) lint
+test: $(GO_SRC) $(VENDOR_DIR) $(INTERCHANGE_OBJ) lint
 	$(VET) $(VET_FLAGS) $(SRC_DIR)/...
 	$(VET) $(VET_FLAGS) $(MAIN)
 	$(GO) list -f $(TEST_LIST_FMT) $(SRC_DIR)/... | xargs -L 1 sh -c
