@@ -84,15 +84,15 @@ func main() {
 		port       string
 		hostname   string
 		envFile    string
-		redisURL   string
+		redisURI   string
 		privateKey string
 	}{}
 
 	logger := logging.New(defs.MainLogPrefix, logging.Green)
-	flag.StringVar(&options.port, "port", "12345", "the port to attach the http listener to")
-	flag.StringVar(&options.hostname, "hostname", "0.0.0.0", "the hostname to bind the http.Server to")
+	flag.StringVar(&options.port, "port", defs.DefaultPort, "the port to attach the http listener to")
+	flag.StringVar(&options.hostname, "hostname", defs.DefaultHostname, "the hostname to bind the http.Server to")
 	flag.StringVar(&options.envFile, "envfile", ".env", "the environment variable file to load")
-	flag.StringVar(&options.redisURL, "redisuri", "redis://0.0.0.0:6379", "redis server uri")
+	flag.StringVar(&options.redisURI, "redisuri", defs.DefaultRedisURI, "redis server uri")
 	flag.StringVar(&options.privateKey, "private-key", ".keys/private.pem", "pem encoded rsa private key")
 	flag.Parse()
 
@@ -113,7 +113,7 @@ func main() {
 		defs.SecurityDeviceTokenPermissionViewer,
 	)
 
-	redisConnection, e := redis.DialURL(options.redisURL)
+	redisConnection, e := redis.DialURL(options.redisURI)
 
 	if e != nil {
 		logger.Errorf("unable to establish connection to redis server: %s", e.Error())
