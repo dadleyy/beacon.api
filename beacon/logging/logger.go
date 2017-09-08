@@ -1,8 +1,10 @@
 package logging
 
+import "io"
 import "os"
 import "log"
 import "fmt"
+import "log/syslog"
 import "github.com/ttacon/chalk"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 
@@ -25,10 +27,32 @@ const (
 	White
 )
 
+var output io.Writer
+
+func findOuput() io.Writer {
+	if output != nil {
+		return output
+	}
+
+	net, addr, tag := os.Getenv("SYSLOG_NETWORK"), os.Getenv("SYSLOG_ADDRESS"), os.Getenv("SYSLOG_TAG")
+
+	if net == "" || addr == "" {
+		return os.Stdout
+	}
+
+	sys, err := syslog.Dial(net, addr, syslog.LOG_WARNING|syslog.LOG_DAEMON, tag)
+
+	if err != nil {
+		return os.Stdout
+	}
+
+	return sys
+}
+
 // New retrurns a new logger
 func New(name string, colorFlag uint) *Logger {
 	prefix := color(colorFlag, name)
-	writer := log.New(os.Stdout, prefix, defs.DefaultLoggerFlags)
+	writer := log.New(findOuput(), prefix, defs.DefaultLoggerFlags)
 	return &Logger{writer}
 }
 
