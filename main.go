@@ -133,21 +133,6 @@ func main() {
 		return
 	}
 
-	redisConnection, e := redis.DialURL(options.redisURI)
-
-	if e != nil {
-		logger.Errorf("unable to establish connection to redis server: %s", e.Error())
-		return
-	}
-
-	if password := redisURL.Query().Get("password"); password != "" {
-		if _, e := redisConnection.Do("AUTH", password); e != nil {
-			redisConnection.Close()
-			logger.Errorf("unable to authenticate connection to redis server: %s", e.Error())
-			return
-		}
-	}
-
 	serverKey, e := security.ReadServerKeyFromFile(options.privateKey)
 
 	if e != nil {
@@ -158,8 +143,6 @@ func main() {
 	if s, e := serverKey.SharedSecret(); e == nil {
 		logger.Debugf("server key loaded, shared secret: \n%x\n\n", s)
 	}
-
-	defer redisConnection.Close()
 
 	websocket := wsUpgrader{
 		Upgrader: websocket.Upgrader{
@@ -202,6 +185,8 @@ func main() {
 			return c, nil
 		},
 	}
+
+	defer redisPool.Close()
 
 	registry := device.RedisRegistry{
 		Pool:           &redisPool,
@@ -287,7 +272,6 @@ func main() {
 		WebsocketUpgrader:  &websocket,
 		RouteList:          routes,
 		ChannelPublisher:   &publisher,
-		RedisConnection:    redisConnection,
 		ApplicationVersion: version.Semver,
 	}
 
