@@ -111,6 +111,10 @@ func main() {
 		options.redisURI = os.Getenv("REDIS_URI")
 	}
 
+	if os.Getenv("PORT") != "" {
+		options.port = os.Getenv("PORT")
+	}
+
 	logger.Debugf("permissions: (admin: %b) (controller %b) (viewer: %b)",
 		defs.SecurityDeviceTokenPermissionAdmin,
 		defs.SecurityDeviceTokenPermissionController,
