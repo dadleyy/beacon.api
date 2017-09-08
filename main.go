@@ -180,8 +180,31 @@ func main() {
 
 	registrationStream := make(device.RegistrationStream, 10)
 
+	redisPool := redis.Pool{
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.DialURL(options.redisURI)
+
+			if err != nil {
+				return nil, err
+			}
+
+			password := redisURL.Query().Get("password")
+
+			if password == "" {
+				return c, nil
+			}
+
+			if _, err := c.Do("AUTH", password); err != nil {
+				c.Close()
+				return nil, err
+			}
+
+			return c, nil
+		},
+	}
+
 	registry := device.RedisRegistry{
-		Conn:           redisConnection,
+		Pool:           &redisPool,
 		Logger:         logging.New(defs.RegistryLogPrefix, logging.Green),
 		TokenGenerator: TokenGenerator{},
 	}

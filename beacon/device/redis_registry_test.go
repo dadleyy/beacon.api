@@ -8,6 +8,7 @@ import "testing"
 import "strings"
 import "github.com/franela/goblin"
 import "github.com/golang/protobuf/proto"
+import "github.com/garyburd/redigo/redis"
 import "github.com/rafaeljusto/redigomock"
 import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/logging"
@@ -40,15 +41,64 @@ var (
 	generator fakeTokenGenerator
 )
 
-func subject() (RedisRegistry, *redigomock.Conn) {
+type redisMock struct {
+	c *redigomock.Conn
+}
+
+func (r *redisMock) Close() error {
+	return nil
+}
+
+func (r *redisMock) Send(string, ...interface{}) error {
+	return nil
+}
+
+func (r *redisMock) Receive() (interface{}, error) {
+	return nil, nil
+}
+
+func (r *redisMock) Flush() error {
+	return nil
+}
+
+func (r *redisMock) Err() error {
+	return nil
+}
+
+func (r *redisMock) Clear() {
+	r.c.Clear()
+}
+
+func (r *redisMock) ExpectationsWereMet() error {
+	return nil
+}
+
+func (r *redisMock) Do(name string, args ...interface{}) (interface{}, error) {
+	return r.c.Do(name, args...)
+}
+
+func (r *redisMock) Command(name string, args ...interface{}) *redigomock.Cmd {
+	return r.c.Command(name, args...)
+}
+
+func subject() (RedisRegistry, *redisMock) {
 	out := bytes.NewBuffer([]byte{})
 	logger := log.New(out, "", 0)
 	logger.SetFlags(0)
-	mock := redigomock.NewConn()
+
+	mock := &redisMock{
+		c: redigomock.NewConn(),
+	}
+
+	pool := redis.Pool{
+		Dial: func() (redis.Conn, error) {
+			return mock, nil
+		},
+	}
 
 	return RedisRegistry{
 		Logger:         &logging.Logger{Logger: logger},
-		Conn:           mock,
+		Pool:           &pool,
 		TokenGenerator: &generator,
 	}, mock
 }
