@@ -107,6 +107,10 @@ func main() {
 		return
 	}
 
+	if os.Getenv("REDIS_URI") != "" {
+		options.redisURI = os.Getenv("REDIS_URI")
+	}
+
 	logger.Debugf("permissions: (admin: %b) (controller %b) (viewer: %b)",
 		defs.SecurityDeviceTokenPermissionAdmin,
 		defs.SecurityDeviceTokenPermissionController,
