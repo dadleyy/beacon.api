@@ -3,8 +3,6 @@ package net
 import "fmt"
 import "net/http"
 
-import "github.com/garyburd/redigo/redis"
-
 import "github.com/dadleyy/beacon.api/beacon/bg"
 import "github.com/dadleyy/beacon.api/beacon/logging"
 
@@ -17,7 +15,6 @@ type ServerRuntime struct {
 	bg.ChannelPublisher
 	*logging.Logger
 	ApplicationVersion string
-	RedisConnection    redis.Conn
 }
 
 // ServerHTTP implmentation of the http.Handler interface method

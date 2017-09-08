@@ -14,7 +14,7 @@ import "github.com/dadleyy/beacon.api/beacon/interchange"
 // RedisRegistry implements the `Registry` interface w/ a redis backend
 type RedisRegistry struct {
 	*logging.Logger
-	redis.Conn
+	*redis.Pool
 	TokenGenerator
 }
 
@@ -619,4 +619,11 @@ func (registry *RedisRegistry) fill(requestKey, deviceID string) error {
 	defer registry.Do("DEL", requestKey)
 
 	return nil
+}
+
+// Do attempts to get an available connection from the pool and execute a command against it.
+func (registry *RedisRegistry) Do(commandName string, args ...interface{}) (reply interface{}, err error) {
+	conn := registry.Pool.Get()
+	defer conn.Close()
+	return conn.Do(commandName, args...)
 }
