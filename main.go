@@ -115,6 +115,10 @@ func main() {
 		options.port = os.Getenv("PORT")
 	}
 
+	if os.Getenv("HOSTNAME") != "" {
+		options.hostname = os.Getenv("HOSTNAME")
+	}
+
 	logger.Debugf("permissions: (admin: %b) (controller %b) (viewer: %b)",
 		defs.SecurityDeviceTokenPermissionAdmin,
 		defs.SecurityDeviceTokenPermissionController,
