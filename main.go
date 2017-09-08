@@ -8,6 +8,7 @@ import "flag"
 import "sync"
 import "context"
 import "syscall"
+import "net/url"
 import "net/http"
 import "os/signal"
 
@@ -125,11 +126,26 @@ func main() {
 		defs.SecurityDeviceTokenPermissionViewer,
 	)
 
+	redisURL, e := url.Parse(options.redisURI)
+
+	if e != nil {
+		logger.Errorf("unable to establish connection to redis server: %s", e.Error())
+		return
+	}
+
 	redisConnection, e := redis.DialURL(options.redisURI)
 
 	if e != nil {
 		logger.Errorf("unable to establish connection to redis server: %s", e.Error())
 		return
+	}
+
+	if password := redisURL.Query().Get("password"); password != "" {
+		if _, e := redisConnection.Do("AUTH", password); e != nil {
+			redisConnection.Close()
+			logger.Errorf("unable to authenticate connection to redis server: %s", e.Error())
+			return
+		}
 	}
 
 	serverKey, e := security.ReadServerKeyFromFile(options.privateKey)
