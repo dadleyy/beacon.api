@@ -421,19 +421,19 @@ func Test_RedisRegistry(t *testing.T) {
 			secret string
 		}{"1212121212", "some request", "31313131313131313131"}
 
-		g.It("returns error when inital keys lookup fails", func() {
+		g.It("returns error when initial keys lookup fails", func() {
 			mock.Command("KEYS").ExpectError(fmt.Errorf("bad-keys"))
 			e := r.FillRegistration("secret", "uuid")
 			g.Assert(e.Error()).Equal("bad-keys")
 		})
 
-		g.It("returns error when inital keys lookup returns garbage", func() {
+		g.It("returns error when initial keys lookup returns garbage", func() {
 			mock.Command("KEYS").Expect(nil)
 			e := r.FillRegistration("secret", "uuid")
 			g.Assert(e.Error()).Equal(defs.ErrBadRedisResponse)
 		})
 
-		g.It("returns error when inital keys lookup returns empty array", func() {
+		g.It("returns error when initial keys lookup returns empty array", func() {
 			mock.Command("KEYS").ExpectSlice([]byte("one"))
 			e := r.FillRegistration("secret", "uuid")
 			g.Assert(e.Error()).Equal(defs.ErrNotFound)
