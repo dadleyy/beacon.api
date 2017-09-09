@@ -39,7 +39,7 @@ $(INTERCHANGE_OBJ): $(INTERCHANGE_SRC)
 
 lint: $(GO_SRC)
 	$(LINT) $(LINT_FLAGS) $(shell $(GO) list $(SRC_DIR)/... | grep -v 'interchange')
-	$(LINT) $(LINT_FLAGS) ./main.go
+	$(LINT) $(LINT_FLAGS) $(MAIN)
 
 test: $(GO_SRC) $(VENDOR_DIR) $(INTERCHANGE_OBJ) lint
 	$(VET) $(VET_FLAGS) $(SRC_DIR)/...

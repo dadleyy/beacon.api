@@ -92,7 +92,7 @@ func (feedback *Feedback) CreateFeedback(runtime *net.RequestRuntime) net.Handle
 	buf, e := ioutil.ReadAll(runtime.Body)
 
 	if e != nil {
-		feedback.Errorf("invalid data recieved in feedback api: %s", e.Error())
+		feedback.Errorf("invalid data received in feedback api: %s", e.Error())
 		return runtime.LogicError("invalid-request")
 	}
 
@@ -104,7 +104,7 @@ func (feedback *Feedback) CreateFeedback(runtime *net.RequestRuntime) net.Handle
 	message := interchange.FeedbackMessage{}
 
 	if e := proto.Unmarshal(buf, &message); e != nil {
-		feedback.Errorf("invalid data recieved in feedback api: %s", e.Error())
+		feedback.Errorf("invalid data received in feedback api: %s", e.Error())
 		return runtime.LogicError(defs.ErrBadInterchangeData)
 	}
 

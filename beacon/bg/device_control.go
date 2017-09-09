@@ -167,7 +167,7 @@ func (processor *DeviceControlProcessor) subscribe(connection device.Connection,
 	processor.Infof("closing device[%s]", connection.GetID())
 }
 
-// Start will continously loop over registration & command channels delegating to private methods as necessary.
+// Start will continuously loop over registration & command channels delegating to private methods as necessary.
 func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwitch) {
 	defer wg.Done()
 
