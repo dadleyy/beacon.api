@@ -1,6 +1,6 @@
 # beacon.api
 
-| travis | codecov | latest version | docker hub | docs | goreportcard |
+| | | | | | |
 | :--- | :---- | :--- | :--- | :--- | :--- |
 | [![travis-img]][2] | [![codecov-img]][4] | [![version-img]][8] | [![docker-img]][6] | [![docs-img]][10] | [![reportcard]][11] |
 
