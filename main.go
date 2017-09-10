@@ -216,7 +216,7 @@ func main() {
 		net.RouteConfig{
 			Method:  "GET",
 			Pattern: defs.SystemRoute,
-		}: routes.System,
+		}: routes.SystemInfo,
 
 		// [/registration]
 		net.RouteConfig{
