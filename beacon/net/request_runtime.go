@@ -22,13 +22,7 @@ type RequestRuntime struct {
 
 // GetQueryParam returns a parsed url.Values struct from the request query params.
 func (runtime *RequestRuntime) GetQueryParam(queryParam string) string {
-	values, e := url.ParseQuery(runtime.Request.URL.RawQuery)
-
-	if e != nil {
-		return ""
-	}
-
-	return values.Get(queryParam)
+	return runtime.Request.URL.Query().Get(queryParam)
 }
 
 // HeaderValue returns value for the given header key.
