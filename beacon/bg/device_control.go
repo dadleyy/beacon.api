@@ -43,6 +43,52 @@ type DeviceControlProcessor struct {
 	pool     []device.Connection
 }
 
+// Start will continuously loop over registration & command channels delegating to private methods as necessary.
+func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwitch) {
+	defer wg.Done()
+
+	processor.Infof("device control processor starting")
+
+	wait, timer, running := sync.WaitGroup{}, time.NewTicker(time.Minute), true
+	defer timer.Stop()
+
+	for running {
+		select {
+		case message, ok := <-processor.channels.Commands:
+			if !ok {
+				running = false
+				break
+			}
+
+			wait.Add(1)
+			processor.Infof("received message on read channel")
+			go processor.handle(message, &wait)
+		case connection, ok := <-processor.channels.Registrations:
+			if ok != true {
+				running = false
+				break
+			}
+
+			wait.Add(2)
+			go processor.welcome(connection, &wait)
+			go processor.subscribe(connection, &wait)
+		case <-timer.C:
+			processor.Infof("pool len[%d] cap[%d]", len(processor.pool), cap(processor.pool))
+		case <-stop:
+			processor.Infof("received kill signal, breaking")
+			running = false
+			break
+		}
+	}
+
+	for _, c := range processor.pool {
+		processor.Infof("closing connection: %s", c.GetID())
+		c.Close()
+	}
+
+	wait.Wait()
+}
+
 // handle receives a reader interface that contains a serialized device message and attempts
 func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.WaitGroup) {
 	defer wg.Done()
@@ -62,10 +108,11 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	}
 
 	var device device.Connection
-	targetID := controlMessage.Authentication.DeviceID
+	targetID := controlMessage.GetAuthentication().GetDeviceID()
 
 	for _, d := range processor.pool {
 		processor.Infof("comparing d[%s]", d.GetID())
+
 		if deviceID := d.GetID(); deviceID != targetID {
 			continue
 		}
@@ -89,13 +136,13 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	processor.Infof("relayed command to device[%s]", device.GetID())
 }
 
-func (processor *DeviceControlProcessor) unsubscribe(connection device.Connection) {
+func (processor *DeviceControlProcessor) unsubscribe(connection device.Connection) error {
 	defer connection.Close()
 	pool, targetID := make([]device.Connection, 0, len(processor.pool)-1), connection.GetID()
 
 	if e := processor.index.RemoveDevice(targetID); e != nil {
 		processor.Errorf("unable to remove target from device index: %s", e.Error())
-		return
+		return e
 	}
 
 	for _, device := range processor.pool {
@@ -107,6 +154,7 @@ func (processor *DeviceControlProcessor) unsubscribe(connection device.Connectio
 	}
 
 	processor.pool = pool
+	return nil
 }
 
 func (processor *DeviceControlProcessor) welcome(connection device.Connection, wg *sync.WaitGroup) {
@@ -145,60 +193,20 @@ func (processor *DeviceControlProcessor) welcome(connection device.Connection, w
 	processor.Infof("welcomed device[%s]", connection.GetID())
 }
 
-func (processor *DeviceControlProcessor) subscribe(connection device.Connection, wg *sync.WaitGroup) {
+func (processor *DeviceControlProcessor) subscribe(connection device.Connection, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	defer processor.unsubscribe(connection)
 	processor.pool = append(processor.pool, connection)
 	processor.Infof("subscribing to device[%s]", connection.GetID())
-	connected := true
 
-	for connected {
+	for {
 		reader, e := connection.Receive()
 
 		if e != nil {
-			connected = false
 			processor.Infof("unable to read from device: %s", e.Error())
-			break
+			return e
 		}
 
 		processor.channels.Feedback <- reader
 	}
-
-	processor.Infof("closing device[%s]", connection.GetID())
-}
-
-// Start will continuously loop over registration & command channels delegating to private methods as necessary.
-func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwitch) {
-	defer wg.Done()
-
-	processor.Infof("device control processor starting")
-
-	wait, timer, running := sync.WaitGroup{}, time.NewTicker(time.Minute), true
-	defer timer.Stop()
-
-	for running {
-		select {
-		case message := <-processor.channels.Commands:
-			wait.Add(1)
-			processor.Infof("received message on read channel")
-			go processor.handle(message, &wait)
-		case connection := <-processor.channels.Registrations:
-			wait.Add(2)
-			go processor.welcome(connection, &wait)
-			go processor.subscribe(connection, &wait)
-		case <-timer.C:
-			processor.Infof("pool len[%d] cap[%d]", len(processor.pool), cap(processor.pool))
-		case <-stop:
-			processor.Infof("received kill signal, breaking")
-			running = false
-			break
-		}
-	}
-
-	for _, c := range processor.pool {
-		processor.Infof("closing connection: %s", c.GetID())
-		c.Close()
-	}
-
-	wait.Wait()
 }

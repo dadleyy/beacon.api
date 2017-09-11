@@ -19,7 +19,7 @@ type jsonResponse struct {
 // Render uses a response writer and a `HandlerResult` to serialize the result in a json-api like format
 func (js *JSONRenderer) Render(response http.ResponseWriter, result HandlerResult) error {
 	headers := response.Header()
-	headers["Content-Type"] = []string{"application/json"}
+	headers.Set("Content-Type", "application/json")
 
 	errors := make([]string, 0, len(result.Errors))
 	meta := Metadata{"time": time.Now(), "version": js.version}
@@ -32,7 +32,13 @@ func (js *JSONRenderer) Render(response http.ResponseWriter, result HandlerResul
 		meta[key] = value
 	}
 
-	out := jsonResponse{"SUCCESS", meta, errors, result.Results}
+	out := jsonResponse{
+		Status:  "SUCCESS",
+		Meta:    meta,
+		Errors:  errors,
+		Results: result.Results,
+	}
+
 	writer := json.NewEncoder(response)
 
 	if ec := len(result.Errors); ec >= 1 {
