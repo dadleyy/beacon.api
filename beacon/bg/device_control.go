@@ -62,7 +62,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	}
 
 	var device device.Connection
-	targetID := controlMessage.Authentication.DeviceID
+	targetID := controlMessage.GetAuthentication().GetDeviceID()
 
 	for _, d := range processor.pool {
 		processor.Infof("comparing d[%s]", d.GetID())
@@ -178,11 +178,21 @@ func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwit
 
 	for running {
 		select {
-		case message := <-processor.channels.Commands:
+		case message, ok := <-processor.channels.Commands:
+			if !ok {
+				running = false
+				break
+			}
+
 			wait.Add(1)
 			processor.Infof("received message on read channel")
 			go processor.handle(message, &wait)
-		case connection := <-processor.channels.Registrations:
+		case connection, ok := <-processor.channels.Registrations:
+			if ok != true {
+				running = false
+				break
+			}
+
 			wait.Add(2)
 			go processor.welcome(connection, &wait)
 			go processor.subscribe(connection, &wait)
