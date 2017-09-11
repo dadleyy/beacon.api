@@ -66,6 +66,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 
 	for _, d := range processor.pool {
 		processor.Infof("comparing d[%s]", d.GetID())
+
 		if deviceID := d.GetID(); deviceID != targetID {
 			continue
 		}

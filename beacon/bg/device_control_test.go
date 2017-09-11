@@ -8,6 +8,7 @@ import "bytes"
 import "strings"
 import "testing"
 import "github.com/franela/goblin"
+import "github.com/golang/protobuf/proto"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/logging"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
@@ -21,7 +22,7 @@ func newTestLogger(output io.Writer) *logging.Logger {
 type deviceControlScaffold struct {
 	log           *bytes.Buffer
 	connections   []device.Connection
-	index         device.Index
+	index         testDeviceIndex
 	channels      []chan io.Reader
 	registrations device.RegistrationStream
 	processor     *DeviceControlProcessor
@@ -103,17 +104,24 @@ func (i testDeviceIndex) FindDevice(string) (device.RegistrationDetails, error) 
 
 type testConnection struct {
 	lastErrorLister
-	closed  bool
-	id      string
-	readers []io.Reader
-	errors  []error
+	closed       bool
+	id           string
+	sentMessages []interchange.DeviceMessage
+	readers      []io.Reader
+	errors       []error
 }
 
 func (c *testConnection) GetID() string {
 	return c.id
 }
 
-func (c *testConnection) Send(interchange.DeviceMessage) error {
+func (c *testConnection) Send(m interchange.DeviceMessage) error {
+	if c.sentMessages == nil {
+		c.sentMessages = make([]interchange.DeviceMessage, 0)
+	}
+
+	c.sentMessages = append(c.sentMessages, m)
+
 	return c.lastError(c.errors)
 }
 
@@ -155,7 +163,7 @@ func Test_DeviceControl(t *testing.T) {
 			})
 
 			g.AfterEach(func() {
-				scaffold.wg.Wait()
+				// scaffold.wg.Wait()
 			})
 
 			g.Describe("receieving commands", func() {
@@ -175,6 +183,62 @@ func Test_DeviceControl(t *testing.T) {
 
 					found = strings.Contains(scaffold.log.String(), errorString)
 					g.Assert(found).Equal(true)
+				})
+
+				g.It("logs any error during unmarshalling of received message", func() {
+					scaffold.channels[0] <- bytes.NewBuffer([]byte("dasdasd{}{}{}"))
+					g.Assert(strings.Contains(scaffold.log.String(), "unmarshal")).Equal(false)
+					go scaffold.processor.Start(scaffold.wg, scaffold.kill)
+					close(scaffold.channels[0])
+					scaffold.wg.Wait()
+					g.Assert(strings.Contains(scaffold.log.String(), "unmarshal")).Equal(true)
+				})
+
+				g.Describe("having been given a valid control message", func() {
+					g.BeforeEach(func() {
+						b, _ := proto.Marshal(&interchange.DeviceMessage{
+							Authentication: &interchange.DeviceMessageAuthentication{
+								DeviceID: "some-device",
+							},
+						})
+						scaffold.channels[0] <- bytes.NewBuffer(b)
+					})
+
+					g.It("logs it's inability to find a device if none are found in the index", func() {
+						g.Assert(strings.Contains(scaffold.log.String(), "unable to locate")).Equal(false)
+						go scaffold.processor.Start(scaffold.wg, scaffold.kill)
+						close(scaffold.channels[0])
+						scaffold.wg.Wait()
+						g.Assert(strings.Contains(scaffold.log.String(), "unable to locate")).Equal(true)
+					})
+
+					g.It("sends the command to the device if it is able to find it", func() {
+						connection := &testConnection{
+							id: "some-device",
+						}
+						scaffold.processor.pool = append(scaffold.processor.pool, connection)
+						g.Assert(len(connection.sentMessages)).Equal(0)
+						go scaffold.processor.Start(scaffold.wg, scaffold.kill)
+						close(scaffold.channels[0])
+						scaffold.wg.Wait()
+						g.Assert(len(connection.sentMessages)).Equal(1)
+					})
+
+					g.It("logs the error returned from the device, if exists", func() {
+						connection := &testConnection{
+							id:     "some-device",
+							errors: []error{fmt.Errorf("some-bad-write")},
+						}
+						scaffold.processor.pool = append(scaffold.processor.pool, connection)
+						g.Assert(len(connection.sentMessages)).Equal(0)
+						g.Assert(strings.Contains(scaffold.log.String(), "some-bad-write")).Equal(false)
+						go scaffold.processor.Start(scaffold.wg, scaffold.kill)
+						close(scaffold.channels[0])
+						scaffold.wg.Wait()
+						g.Assert(len(connection.sentMessages)).Equal(1)
+						g.Assert(strings.Contains(scaffold.log.String(), "some-bad-write")).Equal(true)
+					})
+
 				})
 
 				g.It("immediately stops when the command stream channel is closed", func() {
