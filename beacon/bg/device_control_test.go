@@ -7,10 +7,13 @@ import "sync"
 import "bytes"
 import "strings"
 import "testing"
+import "crypto/rsa"
+import "crypto/rand"
 import "github.com/franela/goblin"
 import "github.com/golang/protobuf/proto"
 import "github.com/dadleyy/beacon.api/beacon/device"
 import "github.com/dadleyy/beacon.api/beacon/logging"
+import "github.com/dadleyy/beacon.api/beacon/security"
 import "github.com/dadleyy/beacon.api/beacon/interchange"
 
 func newTestLogger(output io.Writer) *logging.Logger {
@@ -20,9 +23,10 @@ func newTestLogger(output io.Writer) *logging.Logger {
 }
 
 type deviceControlScaffold struct {
+	key           *security.ServerKey
 	log           *bytes.Buffer
 	connections   []device.Connection
-	index         testDeviceIndex
+	index         *testDeviceIndex
 	channels      []chan io.Reader
 	registrations device.RegistrationStream
 	processor     *DeviceControlProcessor
@@ -35,17 +39,28 @@ func (s *deviceControlScaffold) Reset() {
 
 	s.log = bytes.NewBuffer([]byte{})
 
-	s.index = testDeviceIndex{}
+	s.index = &testDeviceIndex{}
 
 	s.channels = []chan io.Reader{
 		make(chan io.Reader, 1),
 		make(chan io.Reader, 1),
 	}
 
-	s.registrations = make(device.RegistrationStream)
+	k, e := rsa.GenerateKey(rand.Reader, 1024)
+
+	if e != nil {
+		panic(e)
+	}
+
+	s.key = &security.ServerKey{
+		PrivateKey: k,
+	}
+
+	s.registrations = make(device.RegistrationStream, 1)
 
 	s.processor = &DeviceControlProcessor{
 		Logger: newTestLogger(s.log),
+		key:    s.key,
 		channels: &DeviceChannels{
 			Commands:      s.channels[0],
 			Feedback:      s.channels[1],
@@ -127,7 +142,9 @@ func (c *testConnection) Send(m interchange.DeviceMessage) error {
 
 func (c *testConnection) Receive() (io.Reader, error) {
 	if len(c.readers) >= 1 {
-		return c.readers[0], nil
+		r := c.readers[0]
+		c.readers = c.readers[1:]
+		return r, nil
 	}
 
 	return nil, c.lastErrorOrNotFound(c.errors)
@@ -156,6 +173,66 @@ func Test_DeviceControl(t *testing.T) {
 
 		g.BeforeEach(scaffold.Reset)
 
+		g.Describe("#subscribe", func() {
+			var connection *testConnection
+			var wg *sync.WaitGroup
+
+			g.BeforeEach(func() {
+				connection = &testConnection{}
+				wg = &sync.WaitGroup{}
+			})
+
+			g.It("returns the error sent from the connection during an attempt to receive", func() {
+				wg.Add(1)
+				connection.errors = append(connection.errors, fmt.Errorf("bad-receive"))
+				e := scaffold.processor.subscribe(connection, wg)
+				wg.Wait()
+				g.Assert(e.Error()).Equal("bad-receive")
+			})
+
+			g.It("sends the feedback message on a successful receive to the feedback channel", func() {
+				wg.Add(1)
+				connection.readers = append(connection.readers, bytes.NewBuffer([]byte("hello world")))
+				scaffold.processor.subscribe(connection, wg)
+				wg.Wait()
+				feedback := <-scaffold.channels[1]
+				reader, ok := feedback.(*bytes.Buffer)
+				g.Assert(ok).Equal(true)
+				g.Assert(reader.String()).Equal("hello world")
+			})
+		})
+
+		g.Describe("#unsubscribe", func() {
+			var connection *testConnection
+
+			g.BeforeEach(func() {
+				connection = &testConnection{id: "patriots"}
+
+				scaffold.processor.pool = []device.Connection{
+					&testConnection{id: "buffalo"},
+					&testConnection{id: "bills"},
+				}
+
+				scaffold.processor.pool = append(scaffold.processor.pool, connection)
+			})
+
+			g.It("returns the error returned from the index if unable to remove", func() {
+				scaffold.index.errors = []error{
+					fmt.Errorf("bad-remove"),
+				}
+				e := scaffold.processor.unsubscribe(connection)
+				g.Assert(e.Error()).Equal("bad-remove")
+			})
+
+			g.It("removes the device if no problems removing from the index", func() {
+				g.Assert(len(scaffold.processor.pool)).Equal(3)
+				e := scaffold.processor.unsubscribe(connection)
+				g.Assert(e).Equal(nil)
+				g.Assert(len(scaffold.processor.pool)).Equal(2)
+			})
+
+		})
+
 		g.Describe("#Start", func() {
 
 			g.BeforeEach(func() {
@@ -163,7 +240,39 @@ func Test_DeviceControl(t *testing.T) {
 			})
 
 			g.AfterEach(func() {
-				// scaffold.wg.Wait()
+				scaffold.wg.Wait()
+			})
+
+			g.Describe("receiving registrations", func() {
+
+				g.It("sends a welcome message to the device", func() {
+					connection := &testConnection{
+						id: "some-device",
+					}
+					scaffold.registrations <- connection
+					g.Assert(len(connection.sentMessages)).Equal(0)
+					go scaffold.processor.Start(scaffold.wg, scaffold.kill)
+					close(scaffold.registrations)
+					scaffold.wg.Wait()
+					g.Assert(len(connection.sentMessages)).Equal(1)
+					payload, welcome := connection.sentMessages[0].GetPayload(), interchange.WelcomeMessage{}
+					err := proto.Unmarshal(payload, &welcome)
+					g.Assert(err).Equal(nil)
+					g.Assert(welcome.GetDeviceID()).Equal("some-device")
+				})
+
+				g.It("logs any errors that come out of the connection's message delivery", func() {
+					connection := &testConnection{
+						errors: []error{fmt.Errorf("bad-welcome-send")},
+					}
+					scaffold.registrations <- connection
+					g.Assert(strings.Contains(scaffold.log.String(), "bad-welcome-send")).Equal(false)
+					go scaffold.processor.Start(scaffold.wg, scaffold.kill)
+					close(scaffold.registrations)
+					scaffold.wg.Wait()
+					g.Assert(strings.Contains(scaffold.log.String(), "bad-welcome-send")).Equal(true)
+				})
+
 			})
 
 			g.Describe("receieving commands", func() {

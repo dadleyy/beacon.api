@@ -27,7 +27,11 @@ func (processor *DeviceFeedbackProcessor) Start(wg *sync.WaitGroup, stop KillSwi
 
 	for running {
 		select {
-		case <-processor.feedback:
+		case _, ok := <-processor.feedback:
+			if ok != true {
+				return
+			}
+
 			processor.Debugf("receieved message from device")
 		case <-stop:
 			processor.Warnf("received kill signal, breaking")
