@@ -4,14 +4,15 @@ import "fmt"
 import "net/url"
 import "net/http"
 
-// RouteList is simply a map between a route configuration and the handler function
-type RouteList map[RouteConfig]Handler
+// RouteConfigMapMatcher is simply a map between a route configuration and the handler function
+type RouteConfigMapMatcher map[RouteConfig]Handler
 
 func noop(r *RequestRuntime) HandlerResult {
 	return HandlerResult{Errors: []error{fmt.Errorf("not-found")}}
 }
 
-func (list *RouteList) match(request *http.Request) (bool, url.Values, Handler) {
+// MatchRequest implements the net.Multiplexer interface.
+func (list *RouteConfigMapMatcher) MatchRequest(request *http.Request) (bool, url.Values, Handler) {
 	method, path := request.Method, request.URL.EscapedPath()
 	pbytes := []byte(path)
 

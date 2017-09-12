@@ -41,8 +41,14 @@ func (js *JSONRenderer) Render(response http.ResponseWriter, result HandlerResul
 
 	writer := json.NewEncoder(response)
 
+	statusCode := result.Status
+
+	if statusCode >= 200 != true {
+		statusCode = http.StatusBadRequest
+	}
+
 	if ec := len(result.Errors); ec >= 1 {
-		response.WriteHeader(http.StatusBadRequest)
+		response.WriteHeader(statusCode)
 		out.Status = "ERRORED"
 		return writer.Encode(out)
 	}

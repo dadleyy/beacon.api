@@ -211,7 +211,7 @@ func main() {
 	feedbackRoutes := routes.NewFeedbackAPI(&registry, &registry)
 	tokenRoutes := routes.NewTokensAPI(&registry, &registry)
 
-	routes := net.RouteList{
+	routes := net.RouteConfigMapMatcher{
 		// [/system]
 		net.RouteConfig{
 			Method:  "GET",
@@ -270,7 +270,7 @@ func main() {
 	runtime := net.ServerRuntime{
 		Logger:             logging.New(defs.ServerRuntimeLogPrefix, logging.Magenta),
 		WebsocketUpgrader:  &websocket,
-		RouteList:          routes,
+		Multiplexer:        &routes,
 		ChannelPublisher:   &publisher,
 		ApplicationVersion: version.Semver,
 	}

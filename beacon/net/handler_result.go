@@ -7,4 +7,5 @@ type HandlerResult struct {
 	Metadata map[string]interface{}
 	Redirect string
 	NoRender bool
+	Status   int
 }
