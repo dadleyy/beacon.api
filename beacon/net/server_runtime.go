@@ -4,6 +4,7 @@ import "fmt"
 import "net/http"
 
 import "github.com/dadleyy/beacon.api/beacon/bg"
+import "github.com/dadleyy/beacon.api/beacon/defs"
 import "github.com/dadleyy/beacon.api/beacon/logging"
 
 // ServerRuntime defines the object that implments the http.Handler interface used during application startup to open
@@ -11,7 +12,7 @@ import "github.com/dadleyy/beacon.api/beacon/logging"
 // request runtime to be sent into the matching route handler.
 type ServerRuntime struct {
 	WebsocketUpgrader
-	RouteList
+	Multiplexer
 	bg.ChannelPublisher
 	*logging.Logger
 	ApplicationVersion string
@@ -19,8 +20,12 @@ type ServerRuntime struct {
 
 // ServerHTTP implmentation of the http.Handler interface method
 func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
-	found, params, handler := runtime.match(request)
-	result := HandlerResult{Errors: []error{fmt.Errorf("not-found")}}
+	found, params, handler := runtime.MatchRequest(request)
+
+	result := HandlerResult{
+		Errors: []error{fmt.Errorf(defs.ErrNotFound)},
+		Status: 404,
+	}
 
 	runtime.Debugf("%s %s %s\n", request.Method, request.URL.Path, request.URL.Host)
 
@@ -53,7 +58,9 @@ func (runtime *ServerRuntime) ServeHTTP(responseWriter http.ResponseWriter, requ
 
 	switch request.Header.Get("accepts") {
 	default:
-		renderer = &JSONRenderer{runtime.ApplicationVersion}
+		renderer = &JSONRenderer{
+			version: runtime.ApplicationVersion,
+		}
 	}
 
 	if e := renderer.Render(responseWriter, result); e != nil {
