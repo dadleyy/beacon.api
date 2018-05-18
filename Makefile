@@ -35,7 +35,7 @@ $(EXE): $(VENDOR_DIR) $(INTERCHANGE_OBJ) $(GO_SRC)
 	$(COMPILE) $(BUILD_FLAGS) -o $(EXE) $(MAIN)
 
 $(INTERCHANGE_OBJ): $(INTERCHANGE_SRC)
-	$(PBCC) -I$(INTERCHANGE_DIR) --go_out=$(INTERCHANGE_DIR) $(INTERCHANGE_SRC)
+	$(GO) generate $(SRC_DIR)/...
 
 lint: $(GO_SRC)
 	$(LINT) $(LINT_FLAGS) $(shell $(GO) list $(SRC_DIR)/... | grep -v 'interchange')
