@@ -54,7 +54,7 @@ func (registrations *RegistrationAPI) Preregister(runtime *net.RequestRuntime) n
 	block, e := hex.DecodeString(request.SharedSecret)
 
 	if e != nil {
-		registrations.Warnf("invalid shared secret: %s", e.Error())
+		registrations.Warnf("invalid shared secret (%s): %s", request.SharedSecret, e.Error())
 		return runtime.LogicError(defs.ErrInvalidDeviceSharedSecret)
 	}
 

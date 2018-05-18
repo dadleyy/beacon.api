@@ -1,25 +1,25 @@
-hash: 41c5bb56e57ae6ac0bee8a311dbd2d41ac8abe6909bde9f631372d9beb4bafe5
-updated: 2017-08-27T12:49:46.532720319-04:00
+hash: 0c40719b3b7b11e268e48010f6ad8cc5ab0021ff3a77ef68b931a3142d3f90d8
+updated: 2018-05-18T10:09:28.051217485-04:00
 imports:
 - name: github.com/franela/goblin
   version: 74c9fe110d4bfd04c222a089a309e0a97e258534
 - name: github.com/garyburd/redigo
-  version: 433969511232c397de61b1442f9fd49ec06ae9ba
+  version: a69d19351219b6dd56f274f96d85a7014a2ec34e
   subpackages:
   - internal
   - redis
 - name: github.com/golang/protobuf
-  version: 98fa357170587e470c5f27d3c3ea0947b71eb455
+  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
   subpackages:
   - proto
 - name: github.com/gorilla/websocket
   version: ea4d1f681babbce9545c9c5f3d5194a789c89f5b
 - name: github.com/joho/godotenv
-  version: 726cc8b906e3d31c70a9671c90a13716a8d3f50d
+  version: a79fa1e548e2c689c241d10173efd51e5d689d5b
 - name: github.com/rafaeljusto/redigomock
   version: 7ae0511314e9946bb0c87d6d485169ab2467a290
 - name: github.com/satori/go.uuid
-  version: 879c5887cd475cd7864858769793b2ceb0d44feb
+  version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/ttacon/chalk
   version: 76b3c8b611dea8f83e49e9ce81fc2b189e0ef3d2
 testImports: []
