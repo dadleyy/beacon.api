@@ -27,10 +27,10 @@ type DeviceChannels struct {
 }
 
 // NewDeviceControlProcessor returns a new DeviceControlProcessor
-func NewDeviceControlProcessor(channels *DeviceChannels, store device.Index, key *security.ServerKey) *DeviceControlProcessor {
+func NewDeviceControlProcessor(c *DeviceChannels, s device.Index, k *security.ServerKey) *DeviceControlProcessor {
 	logger := logging.New(defs.DeviceControlLogPrefix, logging.Yellow)
 	var pool []device.Connection
-	return &DeviceControlProcessor{logger, key, channels, store, pool}
+	return &DeviceControlProcessor{logger, k, c, s, pool}
 }
 
 // The DeviceControlProcessor is used by the server to maintain the pool of websocket connections, register new device
@@ -70,6 +70,8 @@ func (processor *DeviceControlProcessor) Start(wg *sync.WaitGroup, stop KillSwit
 			}
 
 			wait.Add(2)
+
+			// If we've received a welcome message, send our shared secret to the device and start polling for feedback msgs.
 			go processor.welcome(connection, &wait)
 			go processor.subscribe(connection, &wait)
 		case <-timer.C:
@@ -110,6 +112,7 @@ func (processor *DeviceControlProcessor) handle(message io.Reader, wg *sync.Wait
 	var device device.Connection
 	targetID := controlMessage.GetAuthentication().GetDeviceID()
 
+	// Attempt to find a device in our pool associated with the message we've received.
 	for _, d := range processor.pool {
 		processor.Infof("comparing d[%s]", d.GetID())
 
@@ -196,6 +199,8 @@ func (processor *DeviceControlProcessor) welcome(connection device.Connection, w
 func (processor *DeviceControlProcessor) subscribe(connection device.Connection, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	defer processor.unsubscribe(connection)
+
+	// Immediately add this connection to our processor pool.
 	processor.pool = append(processor.pool, connection)
 	processor.Infof("subscribing to device[%s]", connection.GetID())
 
