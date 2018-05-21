@@ -62,24 +62,6 @@ func (u *wsUpgrader) UpgradeWebsocket(w http.ResponseWriter, r *http.Request, h 
 	return u.Upgrader.Upgrade(w, r, h)
 }
 
-// BackgroundPublisher uses the ChannelStore to publish events from web requests to the background processors.
-type BackgroundPublisher struct {
-	channels bg.ChannelStore
-}
-
-// PublishReader implements the bg.ChannelPublisher Publish method
-func (p *BackgroundPublisher) PublishReader(channelName string, reader io.Reader) error {
-	c, e := p.channels[channelName]
-
-	if e != true {
-		return fmt.Errorf(defs.ErrInvalidBackgroundChannel)
-	}
-
-	c <- reader
-
-	return nil
-}
-
 func main() {
 	options := struct {
 		port       string
@@ -152,13 +134,10 @@ func main() {
 		},
 	}
 
-	backgroundChannels := bg.ChannelStore{
+	// Create our two device channels - one for holding a connection to the device & one for processing messages from it.
+	publisher := bg.ChannelStore{
 		defs.DeviceControlChannelName:  make(chan io.Reader, 10),
 		defs.DeviceFeedbackChannelName: make(chan io.Reader, 10),
-	}
-
-	publisher := BackgroundPublisher{
-		channels: backgroundChannels,
 	}
 
 	registrationStream := make(device.RegistrationStream, 10)
@@ -188,20 +167,25 @@ func main() {
 
 	defer redisPool.Close()
 
+	// Create our device store - responsible for providing a persistence layer for connected device information.
 	registry := device.RedisRegistry{
 		Pool:           &redisPool,
 		Logger:         logging.New(defs.RegistryLogPrefix, logging.Green),
 		TokenGenerator: TokenGenerator{},
 	}
 
+	// Bundle our two message channels w/ the registration stream.
 	deviceChannels := bg.DeviceChannels{
-		Feedback:      backgroundChannels[defs.DeviceFeedbackChannelName],
-		Commands:      backgroundChannels[defs.DeviceControlChannelName],
+		Feedback:      publisher[defs.DeviceFeedbackChannelName],
+		Commands:      publisher[defs.DeviceControlChannelName],
 		Registrations: registrationStream,
 	}
 
+	// Create the main device controller that handles registrations & sending messages to the connected devices.
 	control := bg.NewDeviceControlProcessor(&deviceChannels, &registry, serverKey)
-	feedback := bg.NewDeviceFeedbackProcessor(backgroundChannels[defs.DeviceFeedbackChannelName])
+
+	// Create the secondary processor that will receive messages from devices.
+	feedback := bg.NewDeviceFeedbackProcessor(publisher[defs.DeviceFeedbackChannelName])
 
 	processors := []bg.Processor{control, feedback}
 
